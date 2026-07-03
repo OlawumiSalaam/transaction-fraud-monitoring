@@ -1,0 +1,25 @@
+# Deterministic rule engine configuration. [FR-6]
+#
+# Enablement and parameters only. Rule SEMANTICS (the auditable if-then logic)
+# are implemented in M3. Values here are PLACEHOLDER defaults.
+#
+# Dormant-account reactivation is deliberately absent: it is classified out of
+# V1 demonstrable scope (FR-7); no proxy is carried forward.
+
+enabled:
+  - velocity
+  - new_beneficiary_large
+  - mule_passthrough
+  - account_draining
+
+parameters:
+  velocity:
+    window_hours: 24
+    max_transactions: 10
+  new_beneficiary_large:
+    amount_threshold: 200000
+  mule_passthrough:
+    inbound_outbound_window_hours: 2
+    min_passthrough_fraction: 0.9
+  account_draining:
+    min_fraction_of_balance: 0.9

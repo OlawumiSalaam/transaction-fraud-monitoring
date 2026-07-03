@@ -1,0 +1,16 @@
+# Rationale-depth policy. [FR-17]
+#
+# IMPORTANT: the engagement FLOOR — every disposition (including a routine Clear)
+# requires at least a structured reason code, and a one-click clear is impossible —
+# is an ARCHITECTURAL INVARIANT enforced by the Disposition Service and a database
+# NOT NULL constraint. It is NOT configurable and is deliberately not represented
+# in this file. It has the same status as the prohibition on pre-selected
+# dispositions.
+#
+# This file configures only the depth of rationale ABOVE the floor: which
+# decisions additionally require a richer structured rationale. Enforcement is
+# implemented in M7 (Disposition Service).
+
+richer_rationale_required_for_actions:
+  - escalate
+richer_rationale_required_on_deviation: true

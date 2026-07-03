@@ -1,0 +1,66 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv pip install --system ".[dev]"
+      - name: Ruff (lint + format check)
+        run: |
+          ruff check src tests
+          ruff format --check src tests
+      - name: Mypy (type-check)
+        run: mypy
+      - name: Pytest (unit + coverage)
+        env:
+          APP_ENV: ci
+        run: pytest --cov=tfm --cov-report=term-missing
+
+  migrations:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: tfm
+          POSTGRES_PASSWORD: tfm
+          POSTGRES_DB: tfm
+        ports:
+          - "5432:5432"
+        options: >-
+          --health-cmd "pg_isready -U tfm"
+          --health-interval 5s --health-timeout 5s --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install uv
+        run: pip install uv
+      - name: Install dependencies
+        run: uv pip install --system .
+      - name: Apply and roll back migrations on Postgres
+        env:
+          DATABASE_URL: postgresql+psycopg://tfm:tfm@localhost:5432/tfm
+        run: |
+          alembic upgrade head
+          alembic downgrade base
+
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t transaction-fraud-monitoring:ci .

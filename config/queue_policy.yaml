@@ -1,0 +1,12 @@
+# Triage queue ordering policy. [FR-14]
+#
+# The queue is ordered by a configurable operational policy that DEFAULTS to risk
+# but may incorporate other factors. Ordering is an operational decision, not a
+# property of the model score. The ordering basis is visible and re-sortable.
+# Ordering logic is implemented in M7.
+
+default_sort: risk
+allowed_sorts:
+  - risk
+  - case_age
+order: desc
