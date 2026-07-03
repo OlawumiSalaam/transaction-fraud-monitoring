@@ -1,15 +1,15 @@
 """initial schema
 
 Revision ID: fed22ea7434d
-Revises: 
+Revises:
 Create Date: 2026-07-03 01:03:46.755821
 """
 from __future__ import annotations
 
 from collections.abc import Sequence
 
-from alembic import op
 import sqlalchemy as sa
+from alembic import op
 from sqlalchemy import Text
 from sqlalchemy.dialects import postgresql
 
@@ -36,10 +36,22 @@ def upgrade() -> None:
     sa.Column('model_version_id', sa.String(), nullable=False),
     sa.Column('trained_at', sa.DateTime(), nullable=True),
     sa.Column('feature_set', sa.String(), nullable=True),
-    sa.Column('metrics', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
-    sa.Column('calibration', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
+    sa.Column(
+        'metrics',
+        sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'),
+        nullable=True,
+    ),
+    sa.Column(
+        'calibration',
+        sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'),
+        nullable=True,
+    ),
     sa.Column('leakage_verdict', sa.String(), nullable=True),
-    sa.Column('df1_result', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=True),
+    sa.Column(
+        'df1_result',
+        sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'),
+        nullable=True,
+    ),
     sa.Column('artifact_path', sa.String(), nullable=True),
     sa.PrimaryKeyConstraint('model_version_id')
     )
@@ -62,8 +74,12 @@ def upgrade() -> None:
     sa.ForeignKeyConstraint(['counterparty_id'], ['counterparties.counterparty_id'], ),
     sa.PrimaryKeyConstraint('txn_id')
     )
-    op.create_index('ix_transactions_account_ts', 'transactions', ['account_id', 'event_ts'], unique=False)
-    op.create_index('ix_transactions_counterparty', 'transactions', ['counterparty_id'], unique=False)
+    op.create_index(
+        'ix_transactions_account_ts', 'transactions', ['account_id', 'event_ts'], unique=False
+    )
+    op.create_index(
+        'ix_transactions_counterparty', 'transactions', ['counterparty_id'], unique=False
+    )
     op.create_index('ix_transactions_event_ts', 'transactions', ['event_ts'], unique=False)
     op.create_table('cases',
     sa.Column('case_id', sa.String(), nullable=False),
@@ -73,9 +89,17 @@ def upgrade() -> None:
     sa.Column('score_band', sa.String(), nullable=False),
     sa.Column('recommendation_action', sa.String(), nullable=False),
     sa.Column('recommendation_confidence', sa.String(), nullable=False),
-    sa.Column('recommendation_basis', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=False),
+    sa.Column(
+        'recommendation_basis',
+        sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'),
+        nullable=False,
+    ),
     sa.Column('uncertainty_flag', sa.Boolean(), nullable=False),
-    sa.Column('evidence', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=False),
+    sa.Column(
+        'evidence',
+        sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'),
+        nullable=False,
+    ),
     sa.Column('explanation_text', sa.Text(), nullable=True),
     sa.Column('explanation_pathway', sa.String(), nullable=True),
     sa.Column('status', sa.String(), nullable=False),
@@ -92,12 +116,18 @@ def upgrade() -> None:
     sa.Column('audit_id', sa.String(), nullable=False),
     sa.Column('case_id', sa.String(), nullable=False),
     sa.Column('event_type', sa.String(), nullable=False),
-    sa.Column('payload', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=False),
+    sa.Column(
+        'payload',
+        sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'),
+        nullable=False,
+    ),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['cases.case_id'], ),
     sa.PrimaryKeyConstraint('audit_id')
     )
-    op.create_index('ix_audit_log_case_created', 'audit_log', ['case_id', 'created_at'], unique=False)
+    op.create_index(
+        'ix_audit_log_case_created', 'audit_log', ['case_id', 'created_at'], unique=False
+    )
     op.create_table('dispositions',
     sa.Column('disposition_id', sa.String(), nullable=False),
     sa.Column('case_id', sa.String(), nullable=False),
@@ -116,7 +146,11 @@ def upgrade() -> None:
     sa.Column('rule_hit_id', sa.String(), nullable=False),
     sa.Column('case_id', sa.String(), nullable=False),
     sa.Column('rule_id', sa.String(), nullable=False),
-    sa.Column('evidence', sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'), nullable=False),
+    sa.Column(
+        'evidence',
+        sa.JSON().with_variant(postgresql.JSONB(astext_type=Text()), 'postgresql'),
+        nullable=False,
+    ),
     sa.Column('created_at', sa.DateTime(), nullable=False),
     sa.ForeignKeyConstraint(['case_id'], ['cases.case_id'], ),
     sa.PrimaryKeyConstraint('rule_hit_id')
