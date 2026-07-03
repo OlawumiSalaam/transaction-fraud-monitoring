@@ -114,7 +114,7 @@ Implementation proceeds according to the approved Product Specification, Enginee
 
 **Status**
 
-Open
+Resolved
 
 ### Title
 
@@ -153,7 +153,19 @@ Confirm that the repository passes validation before proceeding to M1.
 
 ### Resolution
 
-Pending.
+Resolved 2026-07-03.
+
+Fixed `migrations/versions/0001_initial_schema.py`:
+- **I001:** moved `import sqlalchemy as sa` before `from alembic import op` to satisfy isort ordering within the third-party import section.
+- **E501 (10 violations):** wrapped long `sa.Column(...)` and `op.create_index(...)` calls across multiple lines. No column name, column type, nullable flag, index name, index column, foreign key, table name, revision ID, migration logic, or Postgres trigger was altered.
+
+Validation evidence (2026-07-03):
+
+```
+ruff check .       → All checks passed!
+mypy               → Success: no issues found in 44 source files
+pytest             → 11 passed in 2.09s
+```
 
 ### Specification Traceability
 
