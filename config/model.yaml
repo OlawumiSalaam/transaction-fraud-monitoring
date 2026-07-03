@@ -1,0 +1,62 @@
+# Scorer / training configuration (M2). [FR-3, FR-22, FR-23, FR-26]
+#
+# This file is versioned configuration, not code. It carries the engineering
+# parameters of the scoring milestone: the out-of-time split boundaries, the
+# training seed, the calibration policy, and the leakage-gate DECISION-SUPPORT
+# defaults.
+#
+# IMPORTANT (IMP-007): the numeric values under `leakage_gate` are configurable
+# engineering defaults that SUPPORT the leakage verdict. They are not the
+# definition of the decision. The verdict is evidence-based: the recorded
+# ablation delta, feature importances, and remaining behavioural performance
+# together justify the pass/fail conclusion. A reviewer may disagree with a
+# default without the gate silently flipping — the evidence is always reported.
+
+# Out-of-time split boundaries (PaySim has 744 hourly steps). [§8.3, FR-22]
+split:
+  train_end_step: 500
+  val_end_step: 580
+
+# Fixed training seed for reproducibility. [NFR-5]
+seed: 42
+
+# Threshold at which precision / recall are reported for M2 headline metrics.
+# The OPERATING threshold (score bands → clear/hold/escalate) is a governance
+# decision made in M5 (thresholds.yaml); this is only an evaluation reporting
+# point so precision/recall are defined. PR-AUC and ROC-AUC are threshold-free.
+eval_threshold: 0.5
+
+# Balance-consistency artifact features (§6.5, §9). These are the "suspect"
+# features quarantined behind the leakage gate: the ablation removes them and
+# measures how much behavioural performance survives without them.
+balance_artifact_features:
+  - bal_orig_before
+  - bal_orig_after
+  - frac_bal_orig_moved
+  - orig_account_emptied
+
+# Augmented features available to the kitchen-sink comparator only (LightGBM).
+# These are destination-balance signals, None for merchant rows, zero-imputed
+# inside the LightGBM pipeline only (IMP-004, IMP-006). They never enter the
+# interpretable primary or the shared canonical substrate.
+augmented_features:
+  - bal_dest_before
+  - bal_dest_after
+
+# Probability calibration policy. [FR-23]
+# method: 'auto' chooses isotonic vs sigmoid (Platt) by validation Brier score,
+# with a guard against isotonic overfitting on small fraud counts (R14).
+calibration:
+  method: auto            # auto | isotonic | sigmoid
+  min_fraud_for_isotonic: 500   # below this many fraud rows in val, prefer Platt
+
+# Leakage-gate decision-support defaults (IMP-007). Evidence, not definition.
+leakage_gate:
+  # Number of permutation-importance repeats for the feature-importance inspection.
+  importance_repeats: 5
+  # Decision-support default: an ablated model retaining at least this PR-AUC is
+  # taken as evidence that genuine behavioural signal survives without artifacts.
+  min_behavioural_pr_auc: 0.50
+  # Decision-support default: an ablation delta at or below this (absolute PR-AUC
+  # drop) is evidence the model did not depend primarily on balance artifacts.
+  max_ablation_pr_auc_delta: 0.20

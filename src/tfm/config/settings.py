@@ -135,6 +135,60 @@ class AppConfig(BaseModel):
     governance: GovernanceConfig
 
 
+# ---------------------------------------------------------------------------
+# Model / scoring configuration (M2) — config/model.yaml
+# ---------------------------------------------------------------------------
+
+
+class SplitConfig(BaseModel):
+    """Out-of-time split boundaries by PaySim step [§8.3, FR-22]."""
+
+    train_end_step: int = Field(gt=0)
+    val_end_step: int = Field(gt=0)
+
+    @model_validator(mode="after")
+    def _ordered(self) -> SplitConfig:
+        if self.train_end_step >= self.val_end_step:
+            raise ValueError("model.split: train_end_step must be < val_end_step")
+        return self
+
+
+class CalibrationConfig(BaseModel):
+    """Probability-calibration policy [FR-23]."""
+
+    method: Literal["auto", "isotonic", "sigmoid"] = "auto"
+    min_fraud_for_isotonic: int = Field(ge=0, default=500)
+
+
+class LeakageGateConfig(BaseModel):
+    """Decision-support defaults for the simulator-leakage gate [FR-26, IMP-007].
+
+    These parameters *support* the evidence-based verdict; they do not define it.
+    """
+
+    importance_repeats: int = Field(gt=0, default=5)
+    min_behavioural_pr_auc: float = Field(ge=0.0, le=1.0, default=0.50)
+    max_ablation_pr_auc_delta: float = Field(ge=0.0, le=1.0, default=0.20)
+
+
+class ModelConfig(BaseModel):
+    """Scorer/training configuration [FR-3, FR-22, FR-23, FR-26].
+
+    Versioned configuration for the scoring milestone: split boundaries, seed,
+    evaluation reporting threshold, the quarantined balance-artifact feature set,
+    the comparator-only augmented features, the calibration policy, and the
+    leakage-gate decision-support defaults.
+    """
+
+    split: SplitConfig
+    seed: int = 42
+    eval_threshold: float = Field(ge=0.0, le=1.0, default=0.5)
+    balance_artifact_features: list[str]
+    augmented_features: list[str]
+    calibration: CalibrationConfig
+    leakage_gate: LeakageGateConfig
+
+
 def _read_yaml(path: Path) -> dict[str, Any]:
     if not path.is_file():
         raise FileNotFoundError(f"missing config file: {path}")
@@ -155,6 +209,13 @@ def load_config(settings: Settings) -> AppConfig:
         queue_policy=QueuePolicyConfig(**_read_yaml(config_dir / "queue_policy.yaml")),
         governance=GovernanceConfig(**_read_yaml(config_dir / "governance.yaml")),
     )
+
+
+def load_model_config(settings: Settings) -> ModelConfig:
+    """Load and validate the scorer/training configuration [M2]. Fails fast."""
+
+    config_dir = Path(settings.config_dir)
+    return ModelConfig(**_read_yaml(config_dir / "model.yaml"))
 
 
 @lru_cache
