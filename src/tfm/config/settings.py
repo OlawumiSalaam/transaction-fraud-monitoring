@@ -77,8 +77,27 @@ class ScoreBandsConfig(BaseModel):
         return self
 
 
+class RecommendationConfig(BaseModel):
+    """Recommendation-policy parameters [FR-8, FR-9].
+
+    ``escalating_rules`` are the rule ids that, when fired, warrant an *escalate*
+    recommendation; any other fired rule contributes a *hold*. Governance-owned;
+    the policy sources escalation from config, not code.
+    """
+
+    escalating_rules: list[str] = []
+
+    @model_validator(mode="after")
+    def _known_rules(self) -> RecommendationConfig:
+        unknown = set(self.escalating_rules) - KNOWN_RULE_IDS
+        if unknown:
+            raise ValueError(f"recommendation: unknown escalating rule ids: {sorted(unknown)}")
+        return self
+
+
 class ThresholdsConfig(BaseModel):
     score_bands: ScoreBandsConfig
+    recommendation: RecommendationConfig = Field(default_factory=RecommendationConfig)
 
 
 class RulesConfig(BaseModel):
