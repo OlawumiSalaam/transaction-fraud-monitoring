@@ -23,6 +23,8 @@ import these types, never a private feature or hit shape.
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict
 
 
@@ -108,3 +110,104 @@ class RuleHit(BaseModel):
     rule_id: str
     summary: str  # short human-readable statement for the evidence / explanation layers
     evidence: dict[str, float | int | bool | str | None]  # the fields + thresholds that fired
+
+
+# ── Assembled evidence (M4) ───────────────────────────────────────────────────
+#
+# The Evidence Assembler (assembly/assembler.py) produces an EvidencePackage per
+# flagged transaction, answering the seven evidence requirements (§265, FR-2) and
+# defining the groundable evidence set — the formal contract with the grounding
+# gate (M6). The contract is element-centric: the groundable set is the subset of
+# EvidenceElements marked groundable, with a single completeness invariant —
+# *every value or entity M6 may reference must trace to a groundable
+# EvidenceElement* — so there are no parallel numeric/entity collections to keep
+# synchronised.
+
+# The evidence sources an element may derive from (Addendum §4). "disclosure" is a
+# display-only source (never grounded) added for the synthetic-data disclosure
+# (requirement 7, FR-13).
+EvidenceSource = Literal[
+    "transaction",
+    "account_history",
+    "counterparty",
+    "rule",
+    "score_signal",
+    "disclosure",
+]
+
+# Scalar value types permitted inside an element's raw payload / a rule hit.
+EvidenceScalar = float | int | bool | str | None
+
+
+class EvidenceElement(BaseModel):
+    """One atomic, traceable unit of case evidence (FR-2; Addendum §4).
+
+    Every element traces to a canonical field, a rule hit, or a score signal (the
+    assembler's total traceability invariant). ``groundable`` marks whether M6 may
+    cite this element's values/entities: evidentiary elements are groundable;
+    display-only elements (disclosures, contextual markers) are not — they are
+    shown to the analyst (FR-13) but are not evidentiary claims about the risk, so
+    the grounded narrative must not draw on them.
+
+    ``requirements`` records which of the seven evidence requirements (1..7, §265)
+    this element helps answer; the package derives its coverage map from these, so
+    there is no separately-maintained requirement index.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    element_id: str
+    label: str
+    source: EvidenceSource
+    raw: dict[str, EvidenceScalar]
+    groundable: bool
+    requirements: tuple[int, ...] = ()
+
+
+class ScoreStatus(BaseModel):
+    """Input to the assembler describing the operational score's availability.
+
+    In Version 1 the scorer is gate-ineligible (FR-4), so ``available`` is False and
+    the assembler emits an honest exclusion ``score_signal`` element carrying the
+    reason but **no probability** — so no score value traces to any element and a
+    score claim is structurally ungroundable (Q1). The ``available`` branch is
+    defined for when an eligible model version exists; M4 does not reintroduce the
+    scorer into operational decisions.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    available: bool
+    model_version_id: str
+    probability: float | None = None  # present iff available
+    calibrated: bool | None = None  # present iff available
+    leakage_verdict: str | None = None  # present iff excluded (e.g. "fail")
+    exclusion_reason: str | None = None  # present iff excluded
+
+
+class EvidencePackage(BaseModel):
+    """The assembled evidence for one flagged transaction (FR-2 push output).
+
+    Element-centric: ``elements`` is the single source of truth. The groundable set
+    and the seven-requirements coverage map are both derived from the elements, so
+    nothing parallel must be kept in sync. The recommendation (M5) and explanation
+    (M6) are populated downstream — they are not part of this M4 output.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    txn_id: str
+    elements: tuple[EvidenceElement, ...]
+
+    @property
+    def groundable_elements(self) -> tuple[EvidenceElement, ...]:
+        """The explicit groundable set: the subset M6 may reference (Q2 contract)."""
+        return tuple(e for e in self.elements if e.groundable)
+
+    def requirement_coverage(self) -> dict[int, tuple[str, ...]]:
+        """Map each of the seven evidence requirements to the element_ids answering it."""
+        coverage: dict[int, list[str]] = {r: [] for r in range(1, 8)}
+        for element in self.elements:
+            for requirement in element.requirements:
+                coverage[requirement].append(element.element_id)
+        return {r: tuple(ids) for r, ids in coverage.items()}

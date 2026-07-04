@@ -317,24 +317,127 @@ Full suite green; Ruff + mypy clean.
 ### Deviations
 
 - Release Plan M3 named `account_draining` + `mule_passthrough` as the two real rules.
-  `mule_passthrough` requires the M4 assembler's peer evidence (IC-M3-01) and ships as the
-  documented extension-point stub; `velocity` and `new_beneficiary_large` — clean
-  single-transaction if-then rules — are enabled instead, so the engine ships three real,
-  evaluable rules. The Release Plan permits the enabled set to reflect what ships.
+  `mule_passthrough` requires cross-account peer/chain analysis the governing documents place
+  under Future work (IC-M3-01) and ships as the documented extension-point stub; `velocity`
+  and `new_beneficiary_large` — clean single-transaction if-then rules — are enabled instead,
+  so the engine ships three real, evaluable rules. The Release Plan permits the enabled set to
+  reflect what ships.
 - Whether the supplied PaySim dataset exercises every enabled rule is a **documented dataset
   limitation** (narrow typology; no per-account longitudinal history — §6.6), not an
   implementation failure, and is out of scope for further analysis.
 
 ### Implementation Concerns
 
-- **IC-M3-01 — `mule_passthrough` deferred to M4.** Its inbound-then-outbound signature needs
-  the assembler's assembled peer evidence (Addendum §4 — the engine's input is "the assembled
-  evidence for a transaction"), not present on a single-transaction `FeatureVector`, and must
-  not be approximated with a remediation-specific feature. Registered as the extension-point
-  stub; real logic activates in M4. Not an invariant violation.
+- **IC-M3-01 — `mule_passthrough`: activation route is Future work (§517), not M4.** Revisiting
+  the governing documents by precedence: the Evidence Assembler's defined inputs (Addendum §4)
+  are *transaction + account history + counterparty + score + rule hits* — the origin account's
+  history and the counterparty **record**, not the counterparty's transaction chain. The seven
+  evidence requirements answer "broader pattern" with *counterparty linkage + direction +
+  balances* (§265), and M4's Definition of Done is satisfied without an inbound leg. Full
+  cross-account **network / link analysis for mule structures is explicitly Future work** (Spec
+  §517). So M4 is **not** the architectural point where peer-chain evidence belongs, and M4 does
+  not require it. `mule_passthrough` remains the registered extension-point stub; its
+  specification-supported activation route is the Future network/link-analysis track (§517) — a
+  richer dataset/deployment activates it there. Not an invariant violation; not an M4 obligation.
 
 ### Backlog
 
-- BL-M3-01: `mule_passthrough` real logic once M4 supplies peer evidence (Release Plan B5; IC-M3-01).
+- BL-M3-01: `mule_passthrough` real logic via the Future network/link-analysis track for mule
+  structures (Spec §517; Release Plan B5; IC-M3-01).
 - BL-M3-02: `account_draining` refinements (e.g. an `applies_to_types` config parameter) —
   optional; deferred to a deployment with a broader fraud typology.
+
+---
+
+## M4 — Evidence Assembly
+
+Status: complete (pending commit). The assembler builds, per flagged transaction, the
+`EvidencePackage` that answers the seven evidence requirements (§265, FR-2) and defines the
+groundable evidence set consumed by M5 (recommendation), M6 (explanation/grounding), and M7
+(case view). Pure function of domain inputs — it assembles; it does not score, recommend,
+explain, rank, or decide (Layer Separation).
+
+### Completed
+
+- **Domain types** (`src/tfm/schema/evidence.py`): `EvidenceElement` (element_id, label,
+  `source`, `raw`, `groundable`, `requirements`), `ScoreStatus` (assembler input describing
+  score availability), `EvidencePackage` (element-centric; derives the groundable set and the
+  seven-requirement coverage from the elements — no parallel indexes).
+- **`assemble_evidence`** (`src/tfm/assembly/assembler.py`): maps each of the seven
+  requirements to canonical/rule/score-sourced elements; every element traces to a source
+  (total traceability invariant).
+- **Element-centric groundable contract (Q2)**: `GroundableEvidence` = the subset of elements
+  with `groundable = True`. Single completeness invariant — *every value or entity M6 may
+  reference must trace to a groundable EvidenceElement* — with no numeric/entity collections to
+  keep in sync.
+- **Honest degradation states**:
+  - *FR-4 score exclusion*: a populated `score_signal` element carrying the exclusion reason,
+    `leakage_verdict`, and `excluded_under = "FR-4"` — but **no probability**, so a score claim
+    is structurally ungroundable. The scorer is not reintroduced into operational decisions.
+  - *First-observed account*: an explicit no-baseline `account_history` element whose stated
+    reason ("first observed transaction; no behavioural baseline available") is itself groundable.
+- **Groundable classification (documented)**: evidentiary elements (transaction facts,
+  direction+balances, interpretable features, account history/no-baseline, counterparty, rule
+  hits, score signal) are groundable; the synthetic-data **disclosure** is display-only
+  (`groundable = False`) — shown to the analyst (FR-13) but not an evidentiary risk claim.
+
+### Traceability
+
+FR-2 (assemble seven requirements, push), FR-13 (disclosure); §265, §6.2, §6.4, §6.7; Addendum
+§4 (Evidence Assembler contract); Release Plan M4; Implementation Plan M4; Principle: Layer
+Separation, Canonical Evidence Schema.
+
+### Verification
+
+`tests/unit/test_assembler.py` — 12 tests: all seven requirements covered; **total** traceability
+over every element; expected elements groundable and the disclosure display-only; FR-4 exclusion
+is an explicit structured element with no probability anywhere in the groundable set; first-observed
+emits the groundable no-baseline element with the stated reason; account-with-history emits the
+behavioural summary; determinism. Full suite: **177 passed**; Ruff + `ruff format --check` + mypy clean.
+
+### Assumptions
+
+- First-observed detection uses `prior_transaction_count` supplied by the caller (0 → no baseline).
+- Account-history evidence is scaled to the shipped feature set (Release Plan M4 "Simplified");
+  richer derived aggregates are deferred (backlog B6).
+
+### Deviations
+
+- Score is represented **element-centrically** (a `score_signal` element) rather than as the
+  separate `ScoreEvidence`/`ScoreExclusion` wrapper from the earlier proposal — collapsing to
+  one representation per the approved Q2 contract; the FR-4 exclusion falls out naturally.
+- Disclosures are modelled as a display-only `EvidenceElement` (source `disclosure`) so all
+  seven requirements map uniformly to elements; the `EvidenceSource` enum extends the Addendum's
+  five illustrative sources by this one display-only source.
+- `mule_passthrough` remains deferred (IC-M3-01): M4's inputs and DoD do not include peer-chain
+  evidence; its activation route is Future work (§517), not an M4 obligation.
+
+### Implementation Concerns
+
+- None new. IC-M3-01 stands, now with the corrected §517 Future activation route (see M3 above).
+
+### Backlog
+
+- BL-M4-01: Richer derived evidence aggregates (Release Plan B6; FR-2).
+- BL-M4-02: Persist the assembled `EvidencePackage` into `audit_log.evidence` at disposition
+  (M8) and serve it via `GET /api/cases/{id}` (M7); the assembler output is the source object.
+
+---
+
+## M4 — Implementation Summary
+
+- **Element-centric GroundableEvidence contract**: the assembler emits `EvidenceElement`s; the
+  groundable set is exactly the `groundable = True` subset (`EvidencePackage.groundable_elements`).
+  One completeness invariant — every referenceable value/entity traces to a groundable element —
+  replaces any numeric/entity synchronisation. This is the formal M4→M6 boundary: M6 may reference
+  only groundable elements, and the grounding gate validates every generated number/entity against
+  that set.
+- **Honest degradation states**: (a) the ineligible scorer is an explicit `score_signal` element
+  stating exclusion under FR-4 with no probability — a score claim cannot be grounded; (b) a
+  first-observed account yields an explicit, groundable no-baseline element with its stated reason.
+  Both are structured, not blank/omitted/inferred.
+- **Corrected IC-M3-01**: `mule_passthrough`'s activation route is the Future network/link-analysis
+  track (Spec §517), not an M4 assembler extension; M4's inputs and Definition of Done do not
+  require peer-chain evidence.
+- **Seven evidence requirements**: all seven remain satisfied — verified by
+  `requirement_coverage()` returning a non-empty element set for each of 1..7, asserted in tests.
