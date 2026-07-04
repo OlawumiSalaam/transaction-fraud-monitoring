@@ -1,0 +1,98 @@
+{
+  "verdict": "fail",
+  "rationale": "The model appears to ride balance-consistency artefacts: behavioural performance collapses without the balance artefacts (remaining PR-AUC 0.3365 < default 0.50); full-model performance depends heavily on the balance artefacts (ablation delta 0.6626 > default 0.20). Balance-artifact features hold 98.5% of total permutation importance. Under FR-4/FR-26 the model is ineligible regardless of its headline metrics; remediation (feature curation / model change) is required before it can advance. Verdict: FAIL.",
+  "evidence": {
+    "full_metrics": {
+      "pr_auc": 0.9991073854816666,
+      "precision": 0.9894561598224195,
+      "recall": 0.9983202687569989,
+      "roc_auc": 0.9999415242959945,
+      "brier": 0.00044853682816510396,
+      "eval_threshold": 0.5,
+      "n": 160723,
+      "n_positive": 1786
+    },
+    "ablated_metrics": {
+      "pr_auc": 0.33654574861912034,
+      "precision": 0.056936519969676413,
+      "recall": 0.7989921612541994,
+      "roc_auc": 0.9187670573071974,
+      "brier": 0.12185398099754666,
+      "eval_threshold": 0.5,
+      "n": 160723,
+      "n_positive": 1786
+    },
+    "pr_auc_delta": 0.6625616368625462,
+    "remaining_behavioural_pr_auc": 0.33654574861912034,
+    "balance_artifact_features": [
+      "bal_orig_before",
+      "bal_orig_after",
+      "frac_bal_orig_moved",
+      "orig_account_emptied"
+    ],
+    "balance_artifact_importance_share": 0.9845530304740643,
+    "top_importances": [
+      {
+        "name": "frac_bal_orig_moved",
+        "importance": 0.9689404158216346
+      },
+      {
+        "name": "orig_account_emptied",
+        "importance": 0.9606071962201195
+      },
+      {
+        "name": "amount",
+        "importance": 0.027148090685221372
+      },
+      {
+        "name": "type_cash_out",
+        "importance": 0.0026264750841403783
+      },
+      {
+        "name": "bal_orig_after",
+        "importance": 0.001206971808600188
+      },
+      {
+        "name": "bal_orig_before",
+        "importance": 0.0011756778223581455
+      },
+      {
+        "name": "type_transfer",
+        "importance": 0.0005209336722948432
+      },
+      {
+        "name": "type_cash_in",
+        "importance": 1.5176524595839069e-05
+      },
+      {
+        "name": "type_debit",
+        "importance": 0.0
+      },
+      {
+        "name": "txn_count_24h",
+        "importance": 0.0
+      },
+      {
+        "name": "amount_sum_24h",
+        "importance": 0.0
+      },
+      {
+        "name": "is_new_counterparty",
+        "importance": 0.0
+      },
+      {
+        "name": "distinct_counterparties_seen",
+        "importance": 0.0
+      },
+      {
+        "name": "type_payment",
+        "importance": -3.785306023109669e-05
+      }
+    ]
+  },
+  "applied_defaults": {
+    "min_behavioural_pr_auc": 0.5,
+    "max_ablation_pr_auc_delta": 0.2,
+    "importance_repeats": 5.0
+  }
+}

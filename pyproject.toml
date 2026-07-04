@@ -19,16 +19,18 @@ dependencies = [
     "structlog>=24.1",
     "pyyaml>=6.0",
     "httpx>=0.27",
-    "streamlit>=1.27",
+    "streamlit>=1.58",
+    # Data-processing layer (M1+). Not ML-specific; needed in CI for feature
+    # engineering and ingestion tests. scikit-learn and lightgbm remain in [ml].
+    "pandas>=2.2",
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
-# Pulled in at M1 (features) and M2 (scorer, calibration, leakage gate).
+# ML scorer, calibration, leakage gate (M2+).
 ml = [
     "scikit-learn>=1.4",
     "lightgbm>=4.3",
-    "pandas>=2.2",
-    "numpy>=1.26",
 ]
 # Developer tooling.
 dev = [
@@ -64,9 +66,12 @@ ignore = []
 [tool.ruff.lint.per-file-ignores]
 "tests/*" = ["B011"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["tfm", "evaluation"]
+
 [tool.mypy]
 python_version = "3.11"
-files = ["src/tfm"]
+files = ["src/tfm", "evaluation"]
 # Strict on the codebase; scaffolding is fully typed.
 strict = true
 warn_unused_ignores = true
@@ -75,10 +80,12 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 filterwarnings = [
     # Third-party: FastAPI/Starlette TestClient httpx integration deprecation.
     "ignore:Using `httpx` with `starlette.testclient`",
+    # Third-party: LightGBM predicts on a numpy matrix (features are positional).
+    "ignore:X does not have valid feature names:UserWarning",
 ]
 
 [tool.coverage.run]
