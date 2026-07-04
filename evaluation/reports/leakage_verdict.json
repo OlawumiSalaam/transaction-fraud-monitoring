@@ -1,72 +1,76 @@
 {
   "verdict": "fail",
-  "rationale": "The model appears to ride balance-consistency artefacts: behavioural performance collapses without the balance artefacts (remaining PR-AUC 0.3365 < default 0.50); full-model performance depends heavily on the balance artefacts (ablation delta 0.6626 > default 0.20). Balance-artifact features hold 98.5% of total permutation importance. Under FR-4/FR-26 the model is ineligible regardless of its headline metrics; remediation (feature curation / model change) is required before it can advance. Verdict: FAIL.",
+  "rationale": "The model appears to ride balance-consistency artefacts: behavioural performance collapses without the balance artefacts (remaining PR-AUC 0.3369 < default 0.50). Balance-artifact features hold 0.0% of total permutation importance. Under FR-4/FR-26 the model is ineligible regardless of its headline metrics; remediation (feature curation / model change) is required before it can advance. Verdict: FAIL.",
   "evidence": {
     "full_metrics": {
-      "pr_auc": 0.9991073854816666,
-      "precision": 0.9894561598224195,
-      "recall": 0.9983202687569989,
-      "roc_auc": 0.9999415242959945,
-      "brier": 0.00044853682816510396,
+      "pr_auc": 0.3369052245530065,
+      "precision": 0.05649494310998736,
+      "recall": 0.8006718924972005,
+      "roc_auc": 0.9187045391385649,
+      "brier": 0.12185767149317267,
       "eval_threshold": 0.5,
       "n": 160723,
       "n_positive": 1786
     },
     "ablated_metrics": {
-      "pr_auc": 0.33654574861912034,
-      "precision": 0.056936519969676413,
-      "recall": 0.7989921612541994,
-      "roc_auc": 0.9187670573071974,
-      "brier": 0.12185398099754666,
+      "pr_auc": 0.3369052245530065,
+      "precision": 0.05649494310998736,
+      "recall": 0.8006718924972005,
+      "roc_auc": 0.9187045391385649,
+      "brier": 0.12185767149317267,
       "eval_threshold": 0.5,
       "n": 160723,
       "n_positive": 1786
     },
-    "pr_auc_delta": 0.6625616368625462,
-    "remaining_behavioural_pr_auc": 0.33654574861912034,
+    "pr_auc_delta": 0.0,
+    "remaining_behavioural_pr_auc": 0.3369052245530065,
     "balance_artifact_features": [
       "bal_orig_before",
       "bal_orig_after",
       "frac_bal_orig_moved",
       "orig_account_emptied"
     ],
-    "balance_artifact_importance_share": 0.9845530304740643,
+    "balance_artifact_importance_share": 0.0,
     "top_importances": [
       {
-        "name": "frac_bal_orig_moved",
-        "importance": 0.9689404158216346
-      },
-      {
-        "name": "orig_account_emptied",
-        "importance": 0.9606071962201195
-      },
-      {
         "name": "amount",
-        "importance": 0.027148090685221372
-      },
-      {
-        "name": "type_cash_out",
-        "importance": 0.0026264750841403783
-      },
-      {
-        "name": "bal_orig_after",
-        "importance": 0.001206971808600188
-      },
-      {
-        "name": "bal_orig_before",
-        "importance": 0.0011756778223581455
+        "importance": 0.2960803319121883
       },
       {
         "name": "type_transfer",
-        "importance": 0.0005209336722948432
+        "importance": 0.11149402611279229
+      },
+      {
+        "name": "type_payment",
+        "importance": 0.11051119904714066
       },
       {
         "name": "type_cash_in",
-        "importance": 1.5176524595839069e-05
+        "importance": 0.0751836148785087
+      },
+      {
+        "name": "type_cash_out",
+        "importance": 0.008476897971212061
       },
       {
         "name": "type_debit",
-        "importance": 0.0
+        "importance": 0.0002995463841561352
+      },
+      {
+        "name": "amount_to_prior_mean_ratio",
+        "importance": 0.0002873464389077429
+      },
+      {
+        "name": "hours_since_last_txn",
+        "importance": 0.000023489730176740053
+      },
+      {
+        "name": "amount_to_prior_max_ratio",
+        "importance": 0.000019444846549032668
+      },
+      {
+        "name": "distinct_counterparties_seen",
+        "importance": 0.000018254782576820893
       },
       {
         "name": "txn_count_24h",
@@ -79,14 +83,6 @@
       {
         "name": "is_new_counterparty",
         "importance": 0.0
-      },
-      {
-        "name": "distinct_counterparties_seen",
-        "importance": 0.0
-      },
-      {
-        "name": "type_payment",
-        "importance": -3.785306023109669e-05
       }
     ]
   },

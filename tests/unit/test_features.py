@@ -10,10 +10,13 @@ Spec: §6.5, FR-5, R2 (Addendum §5).
 
 from __future__ import annotations
 
+import math
 from datetime import timedelta
 
+import numpy as np
 import pandas as pd
 import pandas.testing as pdt
+import pytest
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
@@ -319,7 +322,8 @@ def test_features_point_in_time_invariant(rows: list[dict]) -> None:
     assume(len(pairs) == len(set(pairs)))
 
     df = _make_df(rows)
-    result = build_features(df)
+    with np.errstate(over="ignore"):  # denormal-tiny Hypothesis amounts (see note above)
+        result = build_features(df)
 
     for acct_id, group in result.groupby("account_id"):
         grp = group.sort_values("event_ts", kind="stable").reset_index(drop=True)
@@ -361,7 +365,8 @@ def test_features_counterparty_prior_transactions_invariant(rows: list[dict]) ->
     assume(len(pairs) == len(set(pairs)))
 
     df = _make_df(rows)
-    result = build_features(df)
+    with np.errstate(over="ignore"):  # denormal-tiny Hypothesis amounts (see note above)
+        result = build_features(df)
 
     for acct_id, group in result.groupby("account_id"):
         grp = group.sort_values("event_ts", kind="stable").reset_index(drop=True)
@@ -552,3 +557,156 @@ def test_single_pass_matches_grouped_reference() -> None:
             check_names=True,
             obj=f"engineered column {col!r}",
         )
+
+
+# ── Account-baseline deviation & sequence features (point-in-time, IMP-011) ───
+#
+# amount_to_prior_mean_ratio and amount_to_prior_max_ratio implement §9's
+# "deviation from the account's baseline"; hours_since_last_txn implements §9's
+# "sequence signals". All three are computed in the single-pass traversal from
+# strictly-prior rows within the account. Per the IMP-005 standing rule, these
+# introduce new accumulations (running mean/max, prior timestamp), so each is
+# covered below by a Hypothesis property test verifying the point-in-time
+# boundary (no feature at row i reads any row j >= i).
+
+
+def test_baseline_features_none_on_first_transaction() -> None:
+    row = build_features(_make_df([{"account_id": "C1", "step": 1, "amount": 100.0}])).iloc[0]
+    assert pd.isna(row["amount_to_prior_mean_ratio"])
+    assert pd.isna(row["amount_to_prior_max_ratio"])
+    assert pd.isna(row["hours_since_last_txn"])
+
+
+def test_amount_to_prior_mean_ratio_values() -> None:
+    df = _make_df(
+        [
+            {"account_id": "C1", "step": 1, "amount": 100.0},
+            {"account_id": "C1", "step": 2, "amount": 300.0},
+            {"account_id": "C1", "step": 3, "amount": 200.0},
+        ]
+    )
+    result = build_features(df).sort_values("step").reset_index(drop=True)
+    assert result.iloc[1]["amount_to_prior_mean_ratio"] == pytest.approx(3.0)  # 300 / 100
+    assert result.iloc[2]["amount_to_prior_mean_ratio"] == pytest.approx(1.0)  # 200 / ((100+300)/2)
+
+
+def test_amount_to_prior_max_ratio_values() -> None:
+    df = _make_df(
+        [
+            {"account_id": "C1", "step": 1, "amount": 100.0},
+            {"account_id": "C1", "step": 2, "amount": 300.0},
+            {"account_id": "C1", "step": 3, "amount": 150.0},
+        ]
+    )
+    result = build_features(df).sort_values("step").reset_index(drop=True)
+    assert result.iloc[1]["amount_to_prior_max_ratio"] == pytest.approx(3.0)  # 300 / 100
+    assert result.iloc[2]["amount_to_prior_max_ratio"] == pytest.approx(0.5)  # 150 / 300
+
+
+def test_hours_since_last_txn_values() -> None:
+    df = _make_df(
+        [
+            {"account_id": "C1", "step": 1},
+            {"account_id": "C1", "step": 5},  # +4 h
+            {"account_id": "C1", "step": 30},  # +25 h
+        ]
+    )
+    result = build_features(df).sort_values("step").reset_index(drop=True)
+    assert result.iloc[1]["hours_since_last_txn"] == pytest.approx(4.0)
+    assert result.iloc[2]["hours_since_last_txn"] == pytest.approx(25.0)
+
+
+def test_baseline_features_isolated_per_account() -> None:
+    """Account C1's history must never influence account C2's baseline/sequence."""
+    df = _make_df(
+        [
+            {"account_id": "C1", "step": 1, "amount": 100.0},
+            {"account_id": "C2", "step": 2, "amount": 500.0},
+        ]
+    )
+    result = build_features(df)
+    c2 = result[result["account_id"] == "C2"].iloc[0]
+    assert pd.isna(c2["amount_to_prior_mean_ratio"])
+    assert pd.isna(c2["amount_to_prior_max_ratio"])
+    assert pd.isna(c2["hours_since_last_txn"])
+
+
+def test_prior_mean_ratio_none_when_prior_amounts_zero() -> None:
+    df = _make_df(
+        [
+            {"account_id": "C1", "step": 1, "amount": 0.0},
+            {"account_id": "C1", "step": 2, "amount": 100.0},
+        ]
+    )
+    result = build_features(df).sort_values("step").reset_index(drop=True)
+    # Prior mean and max are both 0 → ratios undefined → NaN (mirrors frac guard).
+    assert pd.isna(result.iloc[1]["amount_to_prior_mean_ratio"])
+    assert pd.isna(result.iloc[1]["amount_to_prior_max_ratio"])
+
+
+@given(st.lists(_ROW_STRATEGY, min_size=1, max_size=15))
+@settings(max_examples=200, deadline=None)
+def test_features_amount_baseline_prior_invariant(rows: list[dict]) -> None:
+    """amount_to_prior_{mean,max}_ratio reference only strictly-prior rows (R2).
+
+    Ground truth uses the prior amounts of rows j < i within each account group;
+    a value that read any row j >= i would diverge. Covers the running-mean and
+    running-max accumulations introduced in IMP-011 (IMP-005 standing rule).
+    """
+    pairs = [(r["account_id"], r["step"]) for r in rows]
+    assume(len(pairs) == len(set(pairs)))
+
+    # Hypothesis can generate denormal-tiny amounts whose ratio overflows to inf;
+    # both the code and the ground truth compute inf and agree, so silence the
+    # cosmetic numpy overflow warning (unreachable with real, bounded PaySim data).
+    with np.errstate(over="ignore"):
+        result = build_features(_make_df(rows))
+    for _, group in result.groupby("account_id"):
+        grp = group.sort_values("event_ts", kind="stable").reset_index(drop=True)
+        for i in range(len(grp)):
+            amt = float(grp.iloc[i]["amount"])
+            prior = [float(grp.iloc[j]["amount"]) for j in range(i)]
+            mean_actual = grp.iloc[i]["amount_to_prior_mean_ratio"]
+            max_actual = grp.iloc[i]["amount_to_prior_max_ratio"]
+
+            if not prior:
+                assert pd.isna(mean_actual) and pd.isna(max_actual)
+                continue
+
+            mean_prior = sum(prior) / len(prior)
+            if mean_prior > 0.0:
+                assert math.isclose(mean_actual, amt / mean_prior, rel_tol=1e-9, abs_tol=1e-9)
+            else:
+                assert pd.isna(mean_actual)
+
+            max_prior = max(prior)
+            if max_prior > 0.0:
+                assert math.isclose(max_actual, amt / max_prior, rel_tol=1e-9, abs_tol=1e-9)
+            else:
+                assert pd.isna(max_actual)
+
+
+@given(st.lists(_ROW_STRATEGY, min_size=1, max_size=15))
+@settings(max_examples=200, deadline=None)
+def test_features_hours_since_last_prior_invariant(rows: list[dict]) -> None:
+    """hours_since_last_txn is the gap to the immediately prior row (j = i-1) only.
+
+    Covers the prior-timestamp sequence accumulation introduced in IMP-011
+    (IMP-005 standing rule): row 0 of each account has no prior (NaN); every
+    later row equals the elapsed hours since its account's previous transaction.
+    """
+    pairs = [(r["account_id"], r["step"]) for r in rows]
+    assume(len(pairs) == len(set(pairs)))
+
+    with np.errstate(over="ignore"):
+        result = build_features(_make_df(rows))
+    for _, group in result.groupby("account_id"):
+        grp = group.sort_values("event_ts", kind="stable").reset_index(drop=True)
+        for i in range(len(grp)):
+            actual = grp.iloc[i]["hours_since_last_txn"]
+            if i == 0:
+                assert pd.isna(actual)
+            else:
+                gap = grp.iloc[i]["event_ts"] - grp.iloc[i - 1]["event_ts"]
+                expected = gap.total_seconds() / 3600.0
+                assert math.isclose(actual, expected, rel_tol=1e-9, abs_tol=1e-9)

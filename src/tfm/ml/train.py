@@ -32,7 +32,7 @@ from evaluation.calibration_report import CalibrationReport, build_calibration_r
 from evaluation.leakage_gate import LeakageVerdict, run_leakage_gate
 from evaluation.model_eval import EvalMetrics, compute_metrics
 from tfm.config.settings import ModelConfig
-from tfm.data.features import FEATURE_COLUMNS
+from tfm.data.features import COMPARATOR_FEATURE_COLUMNS, PRIMARY_FEATURE_COLUMNS
 from tfm.data.splits import make_out_of_time_split
 from tfm.ml.calibration import CalibratedModel, choose_and_fit_calibrator
 from tfm.ml.candidates import build_candidates
@@ -103,7 +103,7 @@ def run_training(
     train_df, val_df, test_df = split.train, split.val, split.test
     y_test = test_df[_LABEL].astype(int).to_numpy()
 
-    candidates = build_candidates(FEATURE_COLUMNS, config.augmented_features, config.seed)
+    candidates = build_candidates(PRIMARY_FEATURE_COLUMNS, COMPARATOR_FEATURE_COLUMNS, config.seed)
 
     reports: list[CandidateReport] = []
     primary_scorer: FittedScorer | None = None

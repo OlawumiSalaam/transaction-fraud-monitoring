@@ -61,8 +61,10 @@ Status: ✅ Approved (closed 2026-07-03)
 - **Canonical Evidence Schema** (`src/tfm/schema/entities.py`): `TransactionType` (StrEnum),
   `Transaction`, `Account`, `Counterparty`, `AccountBehaviouralProfile`,
   `BeneficiaryRelationship` — all Pydantic frozen models per §6.2.
-- **FeatureVector** (`src/tfm/schema/evidence.py`): shared feature substrate used verbatim
-  by ML scorer (M2), rule engine (M3), and evidence assembler (M4) — per §6.5, FR-5.
+- **FeatureVector** (`src/tfm/schema/evidence.py`): shared feature substrate for the rule
+  engine (M3) and evidence assembler (M4); the ML scorer trains on the
+  `PRIMARY_FEATURE_COLUMNS` subset after the IMP-011 balance-artifact quarantine — per
+  §6.5, FR-5.
 - **PaySim ingestion** (`src/tfm/data/ingest.py`): `load_paysim_csv()` mapping PaySim columns
   to canonical names, `event_ts` derivation, merchant detection (M-prefix), balance nulling
   for merchant destinations, stable `txn_id` from row position; `ingest_to_db()` upserts
@@ -218,9 +220,33 @@ Leakage gate verified in both directions:
 Canonical immutability verified: `run_training` does not mutate the input features DataFrame.
 FR-4 enforced: registry refuses to load a non-gate-passing model in the online path.
 
+### Full-scale execution and remediation cycle 1 (2026-07-04)
+
+The first full-scale run on the complete PaySim dataset (6,362,620 rows) required a
+memory fix to the M1 feature builder (single-pass traversal; IMP-009) and then
+executed the leakage gate on real data:
+
+- **Baseline `tfm-scorer-20260703224313` → FAIL.** The interpretable primary rode
+  balance-consistency artifacts (98.5% permutation-importance share; behavioural
+  PR-AUC 0.3365 on ablation). Correct FR-4/§9 behaviour; recorded, `eligible=false`.
+- **Remediation cycle 1 `tfm-scorer-20260704053632` → FAIL (IMP-011).** Balance
+  artifacts quarantined from the primary (importance share 0.0%, ablation delta
+  0.0000); two §9 behavioural features + one bounded extension added. Behavioural
+  sufficiency still failed: `remaining_behavioural_pr_auc` 0.3369 < 0.50. The new
+  features contributed ~0 (top signals: `amount`, transaction `type_*`), confirming
+  PaySim's draining typology is intrinsically balance-identity-driven (§6.6).
+  Thresholds were **not** tuned (M2 fixed decision — leakage is never hidden).
+
+Per-version reports for both runs are retained under `evaluation/reports/`. The
+next step is a governance decision: a second bounded cycle with a different
+behavioural hypothesis (e.g. counterparty concentration), or shipping the
+documented failure per Release Plan B15.
+
 ### Implementation Concerns
 
-None.
+None. (The persistent leakage FAIL is the governance layer functioning as designed,
+not a blocking ambiguity; the eligibility decision and next-step options are recorded
+in IMP-011 and pending a governance decision.)
 
 ### Backlog
 
@@ -229,3 +255,82 @@ None.
   interface, if richer explanations are required (currently global importances + direction).
 - BL-M2-03: Commit the PaySim-trained scorer artifact and wire it into `docker compose` (M10).
 - BL-M2-04: Subgroup / false-positive-burden analysis (FR-25) — consolidated in M9.
+
+---
+
+## M3 — Deterministic Rule Engine
+
+Status: implemented, pending review. The gate-ineligible scorer (M2) is excluded
+from the operational path under FR-4; the deterministic rule engine is the case's
+**primary operational evidence source** — graceful degradation, not a workaround.
+
+### Completed
+
+- **Domain `RuleHit`** (`src/tfm/schema/evidence.py`): shared evidence type — `rule_id`,
+  human-readable `summary`, and an auditable `evidence` dict (the fields + thresholds
+  that fired), mirroring the persisted `rule_hits.evidence` JSON.
+- **`RuleEngine`** (`src/tfm/rules/engine.py`): evaluates the config-enabled rules over a
+  single `FeatureVector` and returns `[RuleHit]`. Pure, deterministic, **independent of the
+  ML score** (Addendum §4; Layer Separation). Constructed from the versioned `RulesConfig`.
+- **Rule definitions** (`src/tfm/rules/definitions.py`) targeting the documented PaySim
+  typology (§6.6), parameters from `config/rules.yaml`:
+  - `account_draining` (real) — `frac_bal_orig_moved >= min_fraction_of_balance` (§6.5
+    balance/sequence family; FR-6).
+  - `velocity` (real) — `txn_count_24h >= max_transactions` (M1 24 h window).
+  - `new_beneficiary_large` (real) — `is_new_counterparty ∧ amount >= amount_threshold`.
+  - `mule_passthrough` (documented no-op behind the interface — see IC-M3-01).
+- **Balance features in deterministic rules are legitimate.** The IMP-011 quarantine
+  applied only to the ML scorer's *learned* dependence. §6.5 names "fraction of balance
+  moved / account emptied" as the balance/sequence family for rules, and FR-6 names the
+  account-draining pattern; a transparent, inspectable rule is not simulator leakage.
+
+### Traceability
+
+FR-6, FR-7 (rule engine, four V1 patterns); §6.5 (feature families), §6.6 (PaySim
+typology); Addendum §4 (Rule Engine contract); Release Plan M3; Principle: Layer
+Separation, Layer Visibility, Governance (parameters in versioned config).
+
+### Verification
+
+`tests/unit/test_rules.py` — 17 tests: each real rule fires/does-not-fire on
+constructed fixtures; parameters sourced from config; engine returns hits in enabled
+order and respects an enabled subset; determinism; independence-from-score (structural);
+`REGISTRY` covers exactly `KNOWN_RULE_IDS`; RuleHit evidence is auditable; the shipped
+`config/rules.yaml` evaluates. Full suite green; Ruff + mypy clean.
+
+### Assumptions
+
+- `velocity` is bound to the M1 feature's fixed 24 h window; `window_hours` in config is
+  recorded as evidence and expected to be 24.
+- `velocity` fires at `txn_count_24h >= max_transactions` (threshold-inclusive); tunable
+  via config.
+
+### Deviations
+
+- Release Plan M3 named `account_draining` + `mule_passthrough` as the two *real* rules and
+  `velocity` + `new_beneficiary_large` as stubs. In practice `velocity` and
+  `new_beneficiary_large` are cleanly implementable single-transaction rules over canonical
+  features, while `mule_passthrough` is not (IC-M3-01). We therefore ship **three** real
+  single-transaction rules and stub `mule_passthrough`. The Release Plan permits the enabled
+  set to reflect what ships; ≥2 real PaySim-signature rules is satisfied and exceeded. No
+  remediation-specific features (`amount_to_prior_*`, `hours_since_last_txn`) are used.
+
+### Implementation Concerns
+
+- **IC-M3-01 — `mule_passthrough` requires cross-transaction peer context not available at
+  M3.** The inbound-then-rapid-outbound signature (§6.5; config `inbound_outbound_window_hours`,
+  `min_passthrough_fraction`) needs knowledge that the account recently *received* funds and is
+  forwarding ~that amount within a window. That linkage is the M4 assembler's assembled-evidence
+  responsibility (Addendum §4 — the engine's input is "the assembled evidence for a transaction"),
+  not present on a single-transaction `FeatureVector`; and it must not be faked with the
+  remediation-specific `hours_since_last_txn` (which measures the gap to the prior *outbound* row).
+  Shipped as a documented no-op behind the interface. **Options for resolution (pending decision):**
+  (a) make `mule_passthrough` real in M4 once the assembler exposes peer/prior-inbound evidence
+  (recommended); or (b) leave it as a permanent no-op stub for V1 with the rationale documented.
+  This is a sequencing/scope question, not an invariant violation.
+
+### Backlog
+
+- BL-M3-01: `mule_passthrough` real logic once M4 supplies peer evidence (Release Plan B5; IC-M3-01).
+- BL-M3-02: Additional rule parameters (e.g. type-gating account-draining to TRANSFER/CASH_OUT)
+  if richer typology coverage is wanted — currently kept minimal and config-driven.

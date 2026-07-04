@@ -320,8 +320,9 @@ for merchant rows, which is a scorer concern, not a feature-engineering concern.
 `bal_dest_before` and `bal_dest_after` are:
 - Preserved in the canonical schema, the ingest DataFrame, and the FeatureVector
   (no information loss).
-- Excluded from `FEATURE_COLUMNS` (the list shared by the ML scorer as its input
-  matrix).
+- Excluded from `FEATURE_COLUMNS` (at the time, the ML scorer's input matrix; the
+  scorer now trains on the `PRIMARY_FEATURE_COLUMNS` subset after the IMP-011
+  quarantine).
 
 The M2 scorer owns the imputation strategy (e.g., zero-fill for merchants, or
 dropping the columns from non-merchant-only transaction types).
@@ -770,6 +771,106 @@ transient allocation is O(N) and bounded, and the observed runtime is acceptable
 - IMP-005 (point-in-time property tests; the standing rule already anticipates a
   "successor function" to `_account_features`)
 - Principle: Data Integrity (feature computation is point-in-time)
+
+---
+
+## IMP-011
+
+**Date**
+
+2026-07-04
+
+**Title**
+
+M2 remediation cycle 1: balance artifacts quarantined from the interpretable primary; account-baseline behavioural features added; explicit PRIMARY/COMPARATOR feature sets. Gate verdict: FAIL (documented, not hidden).
+
+**Status**
+
+Approved
+
+### Context
+
+The full-scale M2 leakage gate returned FAIL: the interpretable primary rode
+balance-consistency artifacts (98.5% of permutation importance;
+`remaining_behavioural_pr_auc` 0.3365 on ablation). Under FR-4/§9/CLAUDE.md the
+artifacts are "quarantined until the gate approves them" — and it had not. This
+records the first bounded remediation cycle (Implementation Plan §7; Addendum R3).
+
+### Decision
+
+1. **Quarantine (ML primary only).** The interpretable primary and the logistic
+   floor train on the behavioural substrate only — `FEATURE_COLUMNS` minus the
+   configured `balance_artifact_features`. The artifacts REMAIN in
+   `FEATURE_COLUMNS`, the `FeatureVector`, the canonical dataset, the kitchen-sink
+   comparator, the rule engine (FR-6 account-draining), and the evidence layer.
+   Quarantine applies to the *learned scorer's* feature matrix, not to
+   deterministic rules — a layer-separation distinction.
+2. **Explicit feature sets.** `features.py` now defines `PRIMARY_FEATURE_COLUMNS`
+   (behavioural) and `COMPARATOR_FEATURE_COLUMNS` (canonical + augmented
+   destination-balance) alongside the unchanged canonical `FEATURE_COLUMNS`.
+   Coherence tests bind them to config so they cannot drift.
+3. **New behavioural features** (account-behavioural family, point-in-time, single
+   pass): `amount_to_prior_mean_ratio` and `hours_since_last_txn` implement §9
+   ("deviation from the account's baseline"; "sequence signals"); 
+   `amount_to_prior_max_ratio` is a labelled bounded engineering extension within
+   the same family. Each is covered by a Hypothesis point-in-time property test
+   (IMP-005 standing rule).
+4. **Gate, thresholds, FR-4 unchanged.** No tuning of `min_behavioural_pr_auc`
+   (0.50) or `max_ablation_pr_auc_delta` (0.20).
+
+The three new `FeatureVector` fields default to `None` (they are None on any
+account's first transaction) to bound the blast radius to `to_feature_vector` and
+the synthetic fixture rather than every construction site.
+
+### Outcome (full PaySim, `tfm-scorer-20260704053632`) — FAIL
+
+The quarantine succeeded structurally: balance-artifact importance share fell to
+**0.0%** and the ablation delta to **0.0000** (both pass the "modest dependence"
+test). But behavioural sufficiency failed: `remaining_behavioural_pr_auc` =
+**0.3369 < 0.50**. The new features contributed **~0** — the top permutation
+importances are `amount` (0.296) and transaction `type_*`; none of the three new
+features appears in the top signals. The behavioural PR-AUC moved 0.3365 → 0.3369,
+confirming that PaySim's dominant fraud signature (moving the entire balance) is
+intrinsically a balance-identity signal for which amount-deviation and
+inter-transaction-gap are weak proxies (consistent with §6.6: "fraud typology is
+narrow — chiefly transfer/cash-out draining").
+
+Per the M2 fixed decision the FAIL is **recorded, not hidden**; thresholds were not
+touched. The scorer is marked `eligible = false` and is unloadable in the online
+path (FR-4). Remediation is not yet complete; a decision (a second bounded cycle
+with a different behavioural hypothesis — e.g. counterparty concentration — or
+shipping the documented failure per Release Plan B15) is pending.
+
+### Alternatives Considered
+
+**Lower the behavioural threshold to pass** — rejected outright: the explicit STOP
+condition ("never hide leakage behind strong metrics"). **Counterparty
+concentration this cycle** — deferred to a possible cycle 2; the draining typology
+is dominated by single large transfers to new beneficiaries, and cycle 1 targeted
+the amount-deviation signal the ablation identified.
+
+### Verification
+
+- Full suite green (148 passed), incl. two new point-in-time property tests and
+  three feature-set coherence tests; Ruff + mypy clean.
+- Full-scale PaySim run exit 0; primary confirmed to carry 13 features and no
+  balance artifacts; both the baseline (`…20260703224313`) and remediation
+  (`…20260704053632`) per-version reports retained.
+
+### Impact
+
+- `src/tfm/data/features.py`: 3 new features + `PRIMARY_/COMPARATOR_FEATURE_COLUMNS`.
+- `src/tfm/schema/evidence.py`: 3 new `FeatureVector` fields (default None).
+- `src/tfm/ml/candidates.py`, `src/tfm/ml/train.py`: quarantine wiring.
+- `tests/`: property + coherence tests; synthetic fixture extended.
+- Gate logic/thresholds, canonical schema retention for rules, FR-4 registry:
+  unchanged.
+
+### Specification Traceability
+
+- FR-4, FR-26, §9 (leakage gate; eligibility); §6.5, §6.6 (feature families; PaySim
+  typology limits); §11.1 / DF-1; IMP-004, IMP-005, IMP-006, IMP-007
+- Principle: Layer Separation (quarantine is scorer-only); Data Integrity (point-in-time)
 
 ---
 

@@ -113,6 +113,17 @@ def _build_synth(kind: str, n: int, seed: int) -> pd.DataFrame:
     is_new = rng.random(n) < 0.3
     distinct = rng.poisson(2, size=n)
 
+    # Account-baseline deviation & sequence signals (IMP-011). Generated here as
+    # plausible noise; the behavioural label is driven by the existing features.
+    # ~15% of rows are an account's first transaction (no prior baseline → NaN).
+    amount_to_prior_mean_ratio = rng.lognormal(mean=0.0, sigma=0.5, size=n)
+    amount_to_prior_max_ratio = rng.uniform(0.1, 1.5, size=n)
+    hours_since_last_txn = rng.exponential(scale=10.0, size=n)
+    first_txn = rng.random(n) < 0.15
+    amount_to_prior_mean_ratio[first_txn] = np.nan
+    amount_to_prior_max_ratio[first_txn] = np.nan
+    hours_since_last_txn[first_txn] = np.nan
+
     bal_before = rng.lognormal(mean=8.0, sigma=1.0, size=n)
 
     if kind == "behavioural":
@@ -160,6 +171,9 @@ def _build_synth(kind: str, n: int, seed: int) -> pd.DataFrame:
         "amount_sum_24h": amount_sum_24h,
         "is_new_counterparty": is_new,
         "distinct_counterparties_seen": distinct,
+        "amount_to_prior_mean_ratio": amount_to_prior_mean_ratio,
+        "amount_to_prior_max_ratio": amount_to_prior_max_ratio,
+        "hours_since_last_txn": hours_since_last_txn,
         "bal_dest_before": bal_dest_before,
         "bal_dest_after": bal_dest_after,
         "label": label,

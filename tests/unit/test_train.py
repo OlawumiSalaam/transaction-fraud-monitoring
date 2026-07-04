@@ -151,3 +151,41 @@ def test_load_model_config_from_real_yaml() -> None:
     assert config.split.train_end_step == 500
     assert config.split.val_end_step == 580
     assert "orig_account_emptied" in config.balance_artifact_features
+
+
+# ── Feature-set coherence (IMP-011) ─────────────────────────────────────────────
+
+
+def test_primary_columns_exclude_balance_artifacts() -> None:
+    """PRIMARY_FEATURE_COLUMNS excludes exactly the configured balance artifacts.
+
+    Binds the explicit code lists to the gate's configured
+    ``balance_artifact_features`` so quarantine and the gate cannot drift apart.
+    """
+    from tfm.config.settings import Settings, load_model_config
+    from tfm.data.features import FEATURE_COLUMNS, PRIMARY_FEATURE_COLUMNS
+
+    config = load_model_config(Settings(config_dir="config"))
+    artifacts = set(config.balance_artifact_features)
+    assert set(PRIMARY_FEATURE_COLUMNS).isdisjoint(artifacts)
+    assert set(FEATURE_COLUMNS) == set(PRIMARY_FEATURE_COLUMNS) | artifacts
+
+
+def test_comparator_columns_are_canonical_plus_augmented() -> None:
+    from tfm.config.settings import Settings, load_model_config
+    from tfm.data.features import COMPARATOR_FEATURE_COLUMNS, FEATURE_COLUMNS
+
+    config = load_model_config(Settings(config_dir="config"))
+    expected = set(FEATURE_COLUMNS) | set(config.augmented_features)
+    assert set(COMPARATOR_FEATURE_COLUMNS) == expected
+
+
+def test_primary_report_excludes_balance_artifacts(
+    make_synth: Callable[..., pd.DataFrame], m2_model_config: ModelConfig
+) -> None:
+    """The shipped interpretable primary trains on the behavioural substrate only."""
+    df = make_synth("behavioural", n=1200, seed=5)
+    outcome = run_training(df, m2_model_config)
+    by_name = {r.name: r for r in outcome.report.candidate_reports}
+    primary_cols = set(by_name["histgb_interpretable"].feature_columns)
+    assert primary_cols.isdisjoint(m2_model_config.balance_artifact_features)

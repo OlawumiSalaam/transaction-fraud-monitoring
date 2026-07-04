@@ -4,13 +4,15 @@ Three candidates, ratified in Addendum §4 and Implementation Plan §7:
 
 - **HistGradientBoosting** — the interpretable *primary*. Handles ``NaN``
   natively (no imputation of the structural merchant-destination gaps), and its
-  behaviour is inspectable via permutation importance. Trained on the
-  interpretable ``FEATURE_COLUMNS``.
-- **LightGBM** — the *kitchen-sink comparator*. Trained on the augmented feature
-  set (``FEATURE_COLUMNS`` + destination-balance features), which also supplies
-  the DF-1 interpretable-vs-kitchen-sink contrast.
+  behaviour is inspectable via permutation importance. Trained on
+  ``PRIMARY_FEATURE_COLUMNS`` — the behavioural substrate, i.e. the canonical
+  features minus the quarantined balance artifacts (IMP-011).
+- **LightGBM** — the *kitchen-sink comparator*. Trained on
+  ``COMPARATOR_FEATURE_COLUMNS`` (the full canonical set + destination-balance
+  features), which supplies the DF-1 interpretable-vs-kitchen-sink contrast.
 - **Logistic regression** — the *baseline floor*. Imputed and standardised;
-  sanity-checks that the boosters earn their complexity (DF-1).
+  trained on the same behavioural substrate as the primary; sanity-checks that
+  the boosters earn their complexity (DF-1).
 
 Each candidate owns its preprocessing (IMP-006). Model hyperparameters are fixed
 engineering defaults with a pinned seed for reproducibility (NFR-5); the
@@ -76,33 +78,37 @@ class CandidateSpec:
 
 
 def build_candidates(
-    interpretable_features: list[str],
-    augmented_features: list[str],
+    primary_features: list[str],
+    comparator_features: list[str],
     seed: int,
 ) -> list[CandidateSpec]:
     """Assemble the bounded candidate set (primary first).
 
-    ``interpretable_features`` is ``FEATURE_COLUMNS``; the LightGBM comparator adds
-    ``augmented_features`` on top of it.
+    ``primary_features`` is ``PRIMARY_FEATURE_COLUMNS`` — the behavioural substrate
+    the interpretable primary and the logistic floor train on (the shared canonical
+    features minus the quarantined balance artifacts, IMP-011). ``comparator_features``
+    is ``COMPARATOR_FEATURE_COLUMNS`` — the full canonical set plus the augmented
+    destination-balance signals, used by the kitchen-sink comparator for the DF-1
+    contrast.
     """
     return [
         CandidateSpec(
             name="histgb_interpretable",
             kind="histgb",
-            feature_columns=tuple(interpretable_features),
+            feature_columns=tuple(primary_features),
             seed=seed,
             is_primary=True,
         ),
         CandidateSpec(
             name="lightgbm_kitchen_sink",
             kind="lightgbm",
-            feature_columns=tuple(interpretable_features) + tuple(augmented_features),
+            feature_columns=tuple(comparator_features),
             seed=seed,
         ),
         CandidateSpec(
             name="logistic_floor",
             kind="logistic",
-            feature_columns=tuple(interpretable_features),
+            feature_columns=tuple(primary_features),
             seed=seed,
         ),
     ]

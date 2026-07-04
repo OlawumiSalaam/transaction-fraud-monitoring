@@ -45,12 +45,16 @@ _log = get_logger(__name__)
 # lines are emitted.
 _PROGRESS_INTERVAL = 500_000
 
-# Ordered list of ML input feature columns.  Shared verbatim by the scorer
-# (M2), the rule engine (M3), and the evidence assembler (M4).
+# Ordered list of the canonical feature substrate.  Shared verbatim by the rule
+# engine (M3) and the evidence assembler (M4).  The ML scorer does NOT train on
+# this list verbatim: after the M2 leakage FAIL the balance artifacts were
+# quarantined, so the interpretable primary trains on the PRIMARY_FEATURE_COLUMNS
+# subset (this list minus the balance artifacts, plus the behavioural additions);
+# see IMP-011.
 # bal_dest_before / bal_dest_after are excluded here: they are None for
-# merchant counterparties and require imputation before use in ML training;
-# the scorer (M2) decides the imputation strategy.  They remain in the
-# DataFrame and in the FeatureVector for evidence and rule use.
+# merchant counterparties and require imputation before use in ML training; they
+# remain in the DataFrame and in the FeatureVector for evidence and rule use, and
+# feed the kitchen-sink comparator via COMPARATOR_FEATURE_COLUMNS.
 FEATURE_COLUMNS: list[str] = [
     "amount",
     "type_payment",
@@ -66,7 +70,44 @@ FEATURE_COLUMNS: list[str] = [
     "amount_sum_24h",
     "is_new_counterparty",
     "distinct_counterparties_seen",
+    # Account-baseline deviation & sequence signals (§9; IMP-011). Point-in-time,
+    # account-behavioural family — added in the M2 remediation cycle so the
+    # interpretable primary can learn behavioural fraud signal without the
+    # quarantined balance artifacts.
+    "amount_to_prior_mean_ratio",
+    "amount_to_prior_max_ratio",
+    "hours_since_last_txn",
 ]
+
+# Balance-consistency artifact features (§6.5, §9). Quarantined from the ML
+# primary after the M2 leakage FAIL (IMP-011): they RIDE the simulator's
+# bookkeeping identity rather than behavioural fraud signal. They remain in
+# FEATURE_COLUMNS, the FeatureVector, and the canonical dataset for the rule
+# engine (FR-6 account-draining) and the evidence layer — quarantine applies
+# only to the learned scorer's feature matrix, not to deterministic rules.
+_BALANCE_ARTIFACT_FEATURES: list[str] = [
+    "bal_orig_before",
+    "bal_orig_after",
+    "frac_bal_orig_moved",
+    "orig_account_emptied",
+]
+
+# Destination-balance signals available to the kitchen-sink comparator only
+# (IMP-004): None for merchant rows, zero-imputed inside the LightGBM pipeline.
+_AUGMENTED_FEATURES: list[str] = ["bal_dest_before", "bal_dest_after"]
+
+# The interpretable primary (and the logistic floor) train on the behavioural
+# substrate only: the shared canonical features minus the quarantined balance
+# artifacts (IMP-011). Defined explicitly for auditability; the coherence test
+# test_primary_columns_exclude_balance_artifacts binds this to the gate's
+# configured balance_artifact_features so the two cannot drift.
+PRIMARY_FEATURE_COLUMNS: list[str] = [
+    c for c in FEATURE_COLUMNS if c not in _BALANCE_ARTIFACT_FEATURES
+]
+
+# The kitchen-sink comparator adds the destination-balance signals on top of the
+# full canonical substrate (the DF-1 interpretable-vs-kitchen-sink contrast).
+COMPARATOR_FEATURE_COLUMNS: list[str] = [*FEATURE_COLUMNS, *_AUGMENTED_FEATURES]
 
 
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
@@ -134,6 +175,12 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     amount_sum_24h = np.zeros(n, dtype=np.float64)
     is_new_cp = np.ones(n, dtype=bool)
     distinct_cp = np.zeros(n, dtype=np.int64)
+    # Account-baseline deviation & sequence (§9; IMP-011): NaN on the account's
+    # first transaction (no prior baseline) and where a prior-amount denominator
+    # is 0 (ratio undefined) — mirrors frac_bal_orig_moved's None-on-zero rule.
+    amt_to_prior_mean = np.full(n, np.nan, dtype=np.float64)
+    amt_to_prior_max = np.full(n, np.nan, dtype=np.float64)
+    hours_since_last = np.full(n, np.nan, dtype=np.float64)
 
     window = timedelta(hours=24)
     seen_cps: set[object] = set()
@@ -141,6 +188,8 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     acct_start = 0  # index of the first row of the current account
     window_count = 0
     window_sum = 0.0
+    prior_sum = 0.0  # cumulative sum of the account's prior amounts (no eviction)
+    prior_max = 0.0  # running max of the account's prior amounts
     prev_acct: object = None
     started = False
 
@@ -154,6 +203,8 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
             acct_start = i
             window_count = 0
             window_sum = 0.0
+            prior_sum = 0.0
+            prior_max = 0.0
             prev_acct = acct
             started = True
 
@@ -172,6 +223,21 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
         txn_count_24h[i] = window_count
         amount_sum_24h[i] = window_sum
 
+        # Account-baseline deviation & sequence (prior rows only; read BEFORE the
+        # accumulators are updated with the current row).  i > acct_start is the
+        # single "has a prior transaction in this account" condition.
+        if i > acct_start:
+            mean_prior = prior_sum / (i - acct_start)
+            if mean_prior > 0.0:
+                amt_to_prior_mean[i] = amounts[i] / mean_prior
+            if prior_max > 0.0:
+                amt_to_prior_max[i] = amounts[i] / prior_max
+            hours_since_last[i] = (timestamps[i] - timestamps[i - 1]).total_seconds() / 3600.0
+
+        prior_sum += amounts[i]
+        if amounts[i] > prior_max:
+            prior_max = amounts[i]
+
         # Counterparty features: check against prior transactions only.
         cp = counterparties[i]
         is_new_cp[i] = cp not in seen_cps
@@ -185,6 +251,9 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     df["amount_sum_24h"] = amount_sum_24h
     df["is_new_counterparty"] = is_new_cp
     df["distinct_counterparties_seen"] = distinct_cp
+    df["amount_to_prior_mean_ratio"] = amt_to_prior_mean
+    df["amount_to_prior_max_ratio"] = amt_to_prior_max
+    df["hours_since_last_txn"] = hours_since_last
 
     _log.info("feature_build_complete", rows=n)
     return df
@@ -233,4 +302,7 @@ def to_feature_vector(row: pd.Series) -> FeatureVector:
         amount_sum_24h=float(row["amount_sum_24h"]),
         is_new_counterparty=bool(row["is_new_counterparty"]),
         distinct_counterparties_seen=int(row["distinct_counterparties_seen"]),
+        amount_to_prior_mean_ratio=_opt_float(row.get("amount_to_prior_mean_ratio")),
+        amount_to_prior_max_ratio=_opt_float(row.get("amount_to_prior_max_ratio")),
+        hours_since_last_txn=_opt_float(row.get("hours_since_last_txn")),
     )

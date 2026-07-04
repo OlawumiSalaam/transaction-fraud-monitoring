@@ -1,9 +1,14 @@
-"""FeatureVector: the shared feature substrate (M1).
+"""Shared evidence schema: FeatureVector and RuleHit.
 
 The assembled Case evidence record and groundable evidence set are completed
-in M4. This module provides FeatureVector — the output of the Feature Builder
-(data/features.py) that is shared verbatim by the ML scorer (M2), the rule
-engine (M3), and the evidence assembler (M4).
+in M4. This module provides the shared spine those layers import:
+
+- ``FeatureVector`` — the output of the Feature Builder (data/features.py),
+  shared by the rule engine (M3) and the evidence assembler (M4). The ML scorer
+  (M2) trains on the ``PRIMARY_FEATURE_COLUMNS`` subset (balance artifacts
+  quarantined, IMP-011), not on the full vector verbatim.
+- ``RuleHit`` — a deterministic rule firing, produced by the rule engine (M3)
+  and consumed by the assembler (M4), recommendation policy (M5), and audit (M8).
 
 A feature that is predictive but not interpretable is disqualified: the rule
 engine and the LLM grounding layer require every field to be human-readable
@@ -11,9 +16,9 @@ engine and the LLM grounding layer require every field to be human-readable
 excluded from all features to prevent trivial simulator leakage (§6.5, §9).
 
 Spec references: §3 (Canonical Evidence Schema principle), §6.5, FR-1, FR-5,
-FR-6 (rule input fields).
+FR-6 (rule input/output fields).
 Architectural responsibility: shared spine — scorer, rules, and assembler all
-import this type, never a private feature shape.
+import these types, never a private feature or hit shape.
 """
 
 from __future__ import annotations
@@ -71,3 +76,35 @@ class FeatureVector(BaseModel):
     # ── Counterparty ─────────────────────────────────────────────────────────
     is_new_counterparty: bool
     distinct_counterparties_seen: int
+
+    # ── Account-baseline deviation & sequence (point-in-time; §9, IMP-011) ────
+    # None on an account's first transaction (no prior baseline). Defaulted to
+    # None so the (always-None-on-first-txn) signals need not be restated at
+    # every construction site; build_features' to_feature_vector always populates
+    # them. amount_to_prior_max_ratio is a bounded engineering extension; the
+    # other two directly implement §9 (deviation-from-baseline; sequence signal).
+    amount_to_prior_mean_ratio: float | None = None  # amount / mean(prior amounts)
+    amount_to_prior_max_ratio: float | None = None  # amount / max(prior amounts)
+    hours_since_last_txn: float | None = None  # hours since the account's prior txn
+
+
+class RuleHit(BaseModel):
+    """A deterministic rule firing, preserved as auditable evidence (FR-6, FR-20).
+
+    The rule engine (M3) produces these from the shared ``FeatureVector``. Each hit
+    names the rule and carries the exact fields and thresholds that made it fire, so
+    the decision is fully reconstructable by a human (auditability, NFR-3). Rule
+    outputs are kept visibly distinct from model outputs (Layer Separation) and are
+    labelled deterministic — never presented as a learned score.
+
+    ``evidence`` mirrors the persisted ``rule_hits.evidence`` JSON (the assembler /
+    audit writer map this domain type onto the ORM row, adding ids and timestamps).
+
+    Spec: FR-6, FR-20, §6.5; Addendum §4.
+    """
+
+    model_config = ConfigDict(frozen=True)
+
+    rule_id: str
+    summary: str  # short human-readable statement for the evidence / explanation layers
+    evidence: dict[str, float | int | bool | str | None]  # the fields + thresholds that fired
