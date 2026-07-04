@@ -441,3 +441,77 @@ behavioural summary; determinism. Full suite: **177 passed**; Ruff + `ruff forma
   require peer-chain evidence.
 - **Seven evidence requirements**: all seven remain satisfied — verified by
   `requirement_coverage()` returning a non-empty element set for each of 1..7, asserted in tests.
+
+---
+
+## M5 — Recommendation Policy
+
+Status: complete (pending commit). A pure, deterministic, **advisory** policy mapping
+*(score band, rule hits)* → `clear | hold | escalate`. It never decides (the analyst is the
+sole decider); it does not score, explain, rank, or route.
+
+### Completed
+
+- **`recommend`** (`src/tfm/recommendation/policy.py`): pure deterministic function, total over
+  every (score band × rule-hit) combination. Emits `Recommendation { action, confidence,
+  basis {score_band, rule_ids}, uncertainty_flag }` (Addendum §4).
+- **Two paths, one architecture**:
+  - *Absent-score (operational, ships under FR-4)*: recommends solely from rule evidence and
+    **never returns `clear`** — a clear would assert trustworthy low-risk assurance the excluded
+    scorer cannot provide. Escalating rule → escalate; other fired rule → hold; no hits → hold
+    with `uncertainty_flag`. `score_band = "none"`; `uncertainty_flag` always set (no score).
+  - *Present-score (future-ready)*: (band × rule signal) truth table, most-severe-wins;
+    borderline floors at hold. An eligible scorer later flips `ScoreStatus.available` and
+    activates this path with no policy change.
+- **Config-sourced** (`config/thresholds.yaml`): `score_bands` + `recommendation.escalating_rules`
+  (validated against `KNOWN_RULE_IDS`); no literals in logic.
+
+### Traceability
+
+FR-8 (advisory recommendation), FR-9 (governance-first thresholds), §11.2 (deterministic policy;
+borderline → hold; uncertainty propagates); Addendum §4; Release Plan M5; Implementation Plan M5;
+Principle: Human in the Loop, Governance, Graceful Degradation.
+
+### Verification
+
+`tests/unit/test_recommendation.py` — 27 cases: absent-score escalate/hold/thin-evidence;
+**never-clear** across all rule combinations; present-score low→clear, high→escalate,
+borderline→hold, low+escalating-rule→escalate (conflict-flagged); **totality** over
+(band × rule-signal); config-driven escalation; shipped-config loads escalating rules;
+determinism. Full suite: **204 passed**; Ruff + `ruff format --check` + mypy clean.
+
+### Assumptions
+
+- Confidence is a coarse deterministic indicator: `high` on a decisive score signal (band
+  low/high, no conflict), `low` on thin evidence (no score, no rules), else `medium`.
+
+### Deviations
+
+- Full **threshold-sensitivity analysis is deferred to M9** (Impl Plan line 221); the config
+  defaults carry a documented *modelled* rationale. Score bands are operationally dormant while
+  the scorer is excluded, so the present-score path is future-ready but unexercised.
+
+### Implementation Concerns
+
+- None.
+
+### Backlog
+
+- BL-M5-01: Cost-model / threshold-sensitivity analysis for the score bands, consolidated in M9
+  (§11.2, FR-9), when/if an eligible scorer exists.
+
+---
+
+## M5 — Implementation Summary
+
+- **Advisory, deterministic, total**: `recommend` maps (score band, rule hits) → clear/hold/escalate
+  as a pure function, property-tested total over every combination; it carries its basis and an
+  uncertainty flag and never makes the decision (Human-in-the-Loop).
+- **Honest absent-score operational path (confirmed behaviour)**: with the scorer excluded under
+  FR-4, the policy recommends **only** hold or escalate from rule evidence and **never clears** —
+  a clear would assert an assessment the system cannot make without a trustworthy score.
+- **Future-ready present-score path**: the (band × rule) truth table (borderline → hold) activates
+  unchanged when an eligible scorer is introduced — one architecture, two paths.
+- **Governance-sourced thresholds**: score bands and the escalating-rule set live in
+  `config/thresholds.yaml`, validated; no literals in the policy.
+- **Verification**: 27 policy tests including a full totality sweep; full suite 204 passed; clean.
