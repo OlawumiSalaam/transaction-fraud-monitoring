@@ -62,7 +62,7 @@
       },
       {
         "name": "type_cash_in",
-        "importance": 0.000015176524595839069
+        "importance": 1.5176524595839069e-05
       },
       {
         "name": "type_debit",
@@ -86,7 +86,7 @@
       },
       {
         "name": "type_payment",
-        "importance": -0.00003785306023109669
+        "importance": -3.785306023109669e-05
       }
     ]
   },
