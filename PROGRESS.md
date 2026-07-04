@@ -260,77 +260,81 @@ in IMP-011 and pending a governance decision.)
 
 ## M3 — Deterministic Rule Engine
 
-Status: implemented, pending review. The gate-ineligible scorer (M2) is excluded
-from the operational path under FR-4; the deterministic rule engine is the case's
-**primary operational evidence source** — graceful degradation, not a workaround.
+Status: complete (pending commit). The gate-ineligible scorer (M2) is excluded from the
+operational path under FR-4; the deterministic rule engine is the case's primary
+operational **evidence source** — graceful degradation, not a workaround. M3 is judged as
+an engineering milestone — architectural completeness, deterministic behaviour,
+explainability, and evidence generation — independent of how thoroughly the supplied
+PaySim dataset exercises each rule.
+
+Three concepts are kept distinct: a rule is **implemented** (present in the registry),
+**enabled** (available for evaluation — the engine runs it and emits a RuleHit when it
+fires), and **exercised by the supplied dataset** (actually fires on PaySim). Enabled
+does not mean "drives a recommendation": RuleHits are evidence; the M5 policy maps them to
+clear/hold/escalate and the human analyst makes the final disposition (M7).
 
 ### Completed
 
-- **Domain `RuleHit`** (`src/tfm/schema/evidence.py`): shared evidence type — `rule_id`,
-  human-readable `summary`, and an auditable `evidence` dict (the fields + thresholds
-  that fired), mirroring the persisted `rule_hits.evidence` JSON.
 - **`RuleEngine`** (`src/tfm/rules/engine.py`): evaluates the config-enabled rules over a
   single `FeatureVector` and returns `[RuleHit]`. Pure, deterministic, **independent of the
-  ML score** (Addendum §4; Layer Separation). Constructed from the versioned `RulesConfig`.
-- **Rule definitions** (`src/tfm/rules/definitions.py`) targeting the documented PaySim
-  typology (§6.6), parameters from `config/rules.yaml`:
-  - `account_draining` (real) — `frac_bal_orig_moved >= min_fraction_of_balance` (§6.5
-    balance/sequence family; FR-6).
-  - `velocity` (real) — `txn_count_24h >= max_transactions` (M1 24 h window).
-  - `new_beneficiary_large` (real) — `is_new_counterparty ∧ amount >= amount_threshold`.
-  - `mule_passthrough` (documented no-op behind the interface — see IC-M3-01).
-- **Balance features in deterministic rules are legitimate.** The IMP-011 quarantine
-  applied only to the ML scorer's *learned* dependence. §6.5 names "fraction of balance
-  moved / account emptied" as the balance/sequence family for rules, and FR-6 names the
-  account-draining pattern; a transparent, inspectable rule is not simulator leakage.
+  ML score** (Addendum §4; Layer Separation); constructed from the versioned `RulesConfig`.
+- **Domain `RuleHit`** (`src/tfm/schema/evidence.py`): auditable evidence — `rule_id`,
+  human-readable `summary`, and the `evidence` dict of the fields + thresholds that fired.
+- **Rule definitions** (`src/tfm/rules/definitions.py`), all auditable if-then, parameters
+  from `config/rules.yaml`, over canonical M1 features only:
+  - `account_draining` — `frac_bal_orig_moved >= min_fraction_of_balance` (§6.5; FR-6).
+  - `velocity` — `txn_count_24h >= max_transactions` (M1 24 h window).
+  - `new_beneficiary_large` — `is_new_counterparty ∧ amount >= amount_threshold`.
+  - `mule_passthrough` — registered extension-point stub (no-op); real logic deferred to M4
+    (IC-M3-01).
+- **Enabled set** (`config/rules.yaml`): account_draining, velocity, new_beneficiary_large.
+  `mule_passthrough` is implemented in the registry but not enabled (deferred to M4).
+- **Dormant-account reactivation** excluded, documented, no proxy (config; not in
+  `KNOWN_RULE_IDS`) — FR-7.
+- **Balance features in deterministic rules are legitimate**: the IMP-011 quarantine applied
+  only to the ML scorer's *learned* dependence; §6.5 names the balance/sequence family for
+  rules and FR-6 names account-draining. A transparent rule is not simulator leakage.
 
 ### Traceability
 
-FR-6, FR-7 (rule engine, four V1 patterns); §6.5 (feature families), §6.6 (PaySim
-typology); Addendum §4 (Rule Engine contract); Release Plan M3; Principle: Layer
-Separation, Layer Visibility, Governance (parameters in versioned config).
+FR-6, FR-7; §6.5, §6.6; Addendum §4 (Rule Engine contract); Release Plan M3; Implementation
+Plan M3; Principle: Layer Separation, Layer Visibility, Governance (parameters in versioned
+config).
 
 ### Verification
 
-`tests/unit/test_rules.py` — 17 tests: each real rule fires/does-not-fire on
-constructed fixtures; parameters sourced from config; engine returns hits in enabled
-order and respects an enabled subset; determinism; independence-from-score (structural);
-`REGISTRY` covers exactly `KNOWN_RULE_IDS`; RuleHit evidence is auditable; the shipped
-`config/rules.yaml` evaluates. Full suite green; Ruff + mypy clean.
+`tests/unit/test_rules.py` — 17 tests: each real rule fires/does-not-fire on constructed
+fixtures; parameters sourced from config; engine returns hits in enabled order and respects
+an enabled subset; determinism; independence-from-score (structural); `REGISTRY` covers
+`KNOWN_RULE_IDS`; RuleHit evidence is auditable; the shipped `config/rules.yaml` evaluates.
+Full suite green; Ruff + mypy clean.
 
 ### Assumptions
 
 - `velocity` is bound to the M1 feature's fixed 24 h window; `window_hours` in config is
   recorded as evidence and expected to be 24.
-- `velocity` fires at `txn_count_24h >= max_transactions` (threshold-inclusive); tunable
-  via config.
 
 ### Deviations
 
-- Release Plan M3 named `account_draining` + `mule_passthrough` as the two *real* rules and
-  `velocity` + `new_beneficiary_large` as stubs. In practice `velocity` and
-  `new_beneficiary_large` are cleanly implementable single-transaction rules over canonical
-  features, while `mule_passthrough` is not (IC-M3-01). We therefore ship **three** real
-  single-transaction rules and stub `mule_passthrough`. The Release Plan permits the enabled
-  set to reflect what ships; ≥2 real PaySim-signature rules is satisfied and exceeded. No
-  remediation-specific features (`amount_to_prior_*`, `hours_since_last_txn`) are used.
+- Release Plan M3 named `account_draining` + `mule_passthrough` as the two real rules.
+  `mule_passthrough` requires the M4 assembler's peer evidence (IC-M3-01) and ships as the
+  documented extension-point stub; `velocity` and `new_beneficiary_large` — clean
+  single-transaction if-then rules — are enabled instead, so the engine ships three real,
+  evaluable rules. The Release Plan permits the enabled set to reflect what ships.
+- Whether the supplied PaySim dataset exercises every enabled rule is a **documented dataset
+  limitation** (narrow typology; no per-account longitudinal history — §6.6), not an
+  implementation failure, and is out of scope for further analysis.
 
 ### Implementation Concerns
 
-- **IC-M3-01 — `mule_passthrough` requires cross-transaction peer context not available at
-  M3.** The inbound-then-rapid-outbound signature (§6.5; config `inbound_outbound_window_hours`,
-  `min_passthrough_fraction`) needs knowledge that the account recently *received* funds and is
-  forwarding ~that amount within a window. That linkage is the M4 assembler's assembled-evidence
-  responsibility (Addendum §4 — the engine's input is "the assembled evidence for a transaction"),
-  not present on a single-transaction `FeatureVector`; and it must not be faked with the
-  remediation-specific `hours_since_last_txn` (which measures the gap to the prior *outbound* row).
-  Shipped as a documented no-op behind the interface. **Options for resolution (pending decision):**
-  (a) make `mule_passthrough` real in M4 once the assembler exposes peer/prior-inbound evidence
-  (recommended); or (b) leave it as a permanent no-op stub for V1 with the rationale documented.
-  This is a sequencing/scope question, not an invariant violation.
+- **IC-M3-01 — `mule_passthrough` deferred to M4.** Its inbound-then-outbound signature needs
+  the assembler's assembled peer evidence (Addendum §4 — the engine's input is "the assembled
+  evidence for a transaction"), not present on a single-transaction `FeatureVector`, and must
+  not be approximated with a remediation-specific feature. Registered as the extension-point
+  stub; real logic activates in M4. Not an invariant violation.
 
 ### Backlog
 
 - BL-M3-01: `mule_passthrough` real logic once M4 supplies peer evidence (Release Plan B5; IC-M3-01).
-- BL-M3-02: Additional rule parameters (e.g. type-gating account-draining to TRANSFER/CASH_OUT)
-  if richer typology coverage is wanted — currently kept minimal and config-driven.
+- BL-M3-02: `account_draining` refinements (e.g. an `applies_to_types` config parameter) —
+  optional; deferred to a deployment with a broader fraud typology.

@@ -1,25 +1,38 @@
-# Deterministic rule engine configuration. [FR-6]
+# Deterministic rule engine configuration. [FR-6, FR-7]
 #
-# Enablement and parameters only. Rule SEMANTICS (the auditable if-then logic)
-# are implemented in M3. Values here are PLACEHOLDER defaults.
+# Governance of `enabled`:
+#   - `enabled` = rules AVAILABLE FOR EVALUATION by the engine. An enabled rule is
+#     evaluated against every transaction and emits a RuleHit only when it fires.
+#   - `enabled` does NOT mean "drives a recommendation": RuleHits are evidence. The
+#     recommendation policy (M5) maps them to clear/hold/escalate, and the human
+#     analyst makes the final disposition (M7).
+#   - Whether the supplied PaySim dataset EXERCISES an enabled rule is a documented
+#     dataset property (§6.6 — narrow typology, no per-account history), separate
+#     from whether the rule is implemented and available.
 #
-# Dormant-account reactivation is deliberately absent: it is classified out of
-# V1 demonstrable scope (FR-7); no proxy is carried forward.
+# Parameters are versioned governance config; rule logic contains no literals.
+#
+# `mule_passthrough` is implemented in the registry but NOT enabled: its
+# inbound-then-outbound signature requires the M4 assembler's peer evidence
+# (IC-M3-01), so it is retained as the extension-point stub and activated in M4.
+# Dormant-account reactivation is deliberately absent — out of V1 scope (FR-7),
+# no proxy carried forward.
 
 enabled:
+  - account_draining
   - velocity
   - new_beneficiary_large
-  - mule_passthrough
-  - account_draining
 
 parameters:
+  account_draining:
+    min_fraction_of_balance: 0.9
   velocity:
     window_hours: 24
     max_transactions: 10
   new_beneficiary_large:
     amount_threshold: 200000
+  # Retained for mule_passthrough (deferred to M4, IC-M3-01); kept so the rule
+  # activates by configuration once the assembler supplies peer evidence.
   mule_passthrough:
     inbound_outbound_window_hours: 2
     min_passthrough_fraction: 0.9
-  account_draining:
-    min_fraction_of_balance: 0.9
