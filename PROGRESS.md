@@ -515,3 +515,90 @@ determinism. Full suite: **204 passed**; Ruff + `ruff format --check` + mypy cle
 - **Governance-sourced thresholds**: score bands and the escalating-rule set live in
   `config/thresholds.yaml`, validated; no literals in the policy.
 - **Verification**: 27 policy tests including a full totality sweep; full suite 204 passed; clean.
+
+---
+
+## M6 — Explanation & Grounding
+
+Status: complete (pending commit). Ships on the **templated floor** (Release Plan/CLAUDE.md
+M6 fixed decision): the templated explainer, deterministic grounding gate, and graceful
+fallback are real; the LLM is a documented stub behind the real `Explainer` interface. The
+explainer *consumes* evidence and explains the assembled evidence + recommendation — not
+model internals (the scorer is operationally excluded, FR-4).
+
+### Completed
+
+- **`Explainer` interface + `explain()` orchestrator** (`explanation/explainer.py`): fallback
+  order LLM → gate → pass ? LLM : templated; LLM disabled/unavailable/grounding-failed →
+  templated. No error path for LLM issues (NFR-2). `Explanation {text, pathway, ai_generated,
+  grounding}`.
+- **`TemplatedExplainer`** (`explanation/templated.py`): deterministic, **grounded by
+  construction** — each sentence is generated from a named groundable element (or the
+  recommendation, which traces to elements) and records its `source_element_ids`; numbers are
+  rendered losslessly and entities copied verbatim, so its own output provably passes the gate.
+- **`GroundingGate`** (`explanation/grounding.py`): deterministic (never a model). Builds the
+  reference set from the groundable elements + the recommendation's controlled vocabulary
+  (numbers, entities, rule ids, action/confidence/score-band, thresholds, FR-4). Verifies every
+  numeric and entity token after canonical normalization ($, commas, %); on failure signals
+  fallback. Templated path bypasses (grounded by construction).
+- **`LLMExplainer`** (`explanation/llm_explainer.py`): documented stub — raises `LLMUnavailable`
+  so the fallback engages; never fabricates output (backlog B8).
+
+### Grounding contract (refined — element-centric, claim-level)
+
+The contract goal is **every factual claim traces to ≥1 groundable EvidenceElement**, enforced
+two ways: (a) **by construction** on the shipped templated path — sentence→element provenance,
+so every claim is reconstructable from named elements; (b) by the **broadened deterministic
+token gate** for the (future) LLM path — numbers, entities, rule ids, recommendation actions,
+score-exclusion / no-baseline terms, and thresholds must all appear in the element-derived
+reference set. The gate remains mechanical (deterministic code, never a model); full semantic
+claim-entailment is out of scope for a deterministic gate by design.
+
+### Traceability
+
+FR-10, FR-11, FR-12, FR-13, FR-24; §3, §5.5, §8, §11.2, §357; Addendum §4; Risk R4/R5;
+Principle: Grounding, Graceful Degradation, Layer Separation.
+
+### Verification
+
+`tests/unit/test_explanation.py` — 13 tests: templated output **passes the gate** (grounded by
+construction); gate **rejects** a planted ungrounded number and entity; canonical $/comma/%
+normalization (R4); LLM disabled and LLM-stub-enabled both fall back to templated (NFR-2); the
+**five degradation states** (scorer excluded, no baseline, no rules, one rule, multiple rules)
+produce honest text with no invented information; determinism + AI-generated label; `Explainer`
+protocol satisfied. Full suite: **217 passed**; Ruff + `ruff format --check` + mypy clean.
+
+### Assumptions / Deviations
+
+- The **ungrounded-rate ≈ 0** guarantee holds **by construction** on the templated floor; its
+  *measurement* (ungrounded / fallback rates on held-out cases, FR-24) is consolidated in **M9**.
+- Generation **timing** (eager vs on-open, §5.5) is deferred to M7/M10 wiring — not fixed here.
+
+### Implementation Concerns
+
+- None.
+
+### Backlog
+
+- BL-M6-01: minimal single-provider `LLMExplainer` behind the interface + constrained prompt
+  (Release Plan B8; FR-10).
+- BL-M6-02: measure ungrounded-statement and fallback rates on held-out synthetic cases (M9; FR-24).
+
+---
+
+## M6 — Implementation Summary
+
+- **Grounding contract (as you refined it)**: every factual claim must trace to a groundable
+  `EvidenceElement`. Enforced by construction on the templated floor (each sentence records its
+  source element ids) and by a broadened deterministic token gate for the LLM path — while
+  keeping the gate mechanical (never a model).
+- **Explanation strategy**: template-driven, LLM-stubbed — the governing M6 fixed decision. The
+  templated explainer is real and grounded by construction; the LLM sits behind the interface,
+  disabled, activatable later by config with no architecture change.
+- **Graceful degradation** proven for all five states — scorer excluded (FR-4), no baseline, no
+  rules, one rule, multiple rules — each an honest explanation with no invented information and
+  uncertainty surfaced, matching the recommendation.
+- **Auditability**: the templated explanation is a pure deterministic function of
+  `(EvidencePackage, Recommendation)` — re-running the explainer reproduces the text byte-for-byte;
+  `groundable_fields_used` records the source elements. The end-to-end M4→M5→M6 example verifies
+  the whole pipeline (grounding `verified=true`, zero violations).
