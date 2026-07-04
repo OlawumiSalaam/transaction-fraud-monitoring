@@ -661,6 +661,118 @@ tooling was extended instead.
 
 ---
 
+## IMP-009
+
+**Date**
+
+2026-07-03
+
+**Title**
+
+Feature builder computes history-dependent features in a single pass over the globally sorted frame (memory optimisation for full-scale PaySim)
+
+**Status**
+
+Approved
+
+### Context
+
+The first full-scale execution of `build_features` on the complete PaySim dataset
+(6,362,620 transactions) exhausted memory and destabilised the host until it
+restarted. The point-in-time algorithm was correct; the problem was purely one of
+memory behaviour in the implementation.
+
+PaySim's `nameOrig` (canonical `account_id`) is almost entirely unique, so grouping
+by account produces on the order of **millions of groups**. The prior implementation
+materialised one DataFrame per account group inside a Python list and concatenated
+them:
+
+```python
+account_groups = []
+for _, grp in df.groupby("account_id", sort=False):
+    account_groups.append(_account_features(grp.sort_values("event_ts")))  # .copy() inside
+df = pd.concat(account_groups).sort_index()
+```
+
+At peak this held, simultaneously, the sorted frame, ~millions of per-group
+DataFrames (each carrying pandas block-manager and index overhead), and the concat
+output — an **O(number-of-accounts)** object-overhead term on top of the row data,
+which dominated and drove the machine unstable.
+
+This was discovered during M2 full-scale execution. It is an implementation defect,
+not an architectural change: the M1 feature families, the Canonical Evidence Schema,
+and the point-in-time invariant (R2) are unchanged.
+
+### Decision
+
+Compute the account-behavioural and counterparty features in a **single linear pass**
+over the frame after it is stably sorted by `(account_id, event_ts)`. Per-account
+sliding-window and counterparty-set state is reset at each account boundary (detected
+by a change in `account_id`, which is contiguous after the sort). Results are written
+into four preallocated column arrays and assigned back to the frame. The `groupby`,
+the per-group `.copy()`/`.sort_values()`, the accumulator list, and the `pd.concat`
+are eliminated. `_account_features` is removed from production code.
+
+Lightweight structured progress logging (`feature_build_start` / `feature_build_progress`
+every 500k rows / `feature_build_complete`) was added to the stage so long-running
+offline jobs are observable. Logging does not affect feature semantics.
+
+### Rationale
+
+Because the global stable sort already places each account's rows contiguously and in
+`event_ts` order, the single pass visits rows in exactly the order the per-group
+traversal did — identical ordering, identical tie-breaking, identical arithmetic —
+so every engineered feature value is preserved bit-for-bit. Peak memory drops from
+O(N) data **plus an O(number-of-accounts) DataFrame-object term** to O(N) with a
+small constant (the sorted frame plus a handful of column-width arrays). On the full
+6.36M-row dataset the stage now completes in ~90 s with stable memory, and the M2
+training pipeline (including the simulator-leakage gate) runs to completion.
+
+### Alternatives Considered
+
+**Keep `groupby` but stream results into preallocated arrays (no list, no concat)** —
+rejected: it removes the concat copy but still pays per-group DataFrame
+materialisation and per-group sorts across millions of groups; the single pass is
+simpler and removes the group-count-proportional cost entirely.
+
+**Convert timestamps to numpy `datetime64`/int64 for the window arithmetic** —
+deferred: the tz-aware `event_ts` is kept as pandas `Timestamp` objects so the 24 h
+lookback arithmetic is byte-for-byte identical to the reference; the remaining
+transient allocation is O(N) and bounded, and the observed runtime is acceptable.
+
+### Verification
+
+- `tests/unit/test_features.py`: all 25 tests pass, including both point-in-time
+  Hypothesis property tests (R2) and a new equivalence regression test,
+  `test_single_pass_matches_grouped_reference`, which asserts identical values for
+  every engineered feature column against a **frozen copy of the pre-optimisation
+  grouped implementation** on a representative, shuffled multi-account dataset. The
+  frozen grouped implementation is retained solely inside the test as a reference
+  oracle; production carries a single implementation (no dead code).
+- Ruff and mypy clean on `data/features.py`.
+- Full PaySim training pipeline (`scripts/train_model.py`) runs end-to-end on all
+  6,362,620 rows with exit code 0 and no crash.
+
+### Impact
+
+- `src/tfm/data/features.py`: `build_features` rewritten single-pass;
+  `_account_features` removed; progress logging added.
+- `tests/unit/test_features.py`: equivalence regression test + frozen reference oracle.
+- `build_features` output (values, row order, index), `FEATURE_COLUMNS`, the
+  Canonical Evidence Schema, and all downstream consumers: unchanged.
+
+### Specification Traceability
+
+- FR-5 (shared feature substrate)
+- §6.5 (point-in-time interpretable features)
+- R2 (temporal leakage guard, Addendum §5)
+- NFR-5 (reproducibility — full-scale run now completes)
+- IMP-005 (point-in-time property tests; the standing rule already anticipates a
+  "successor function" to `_account_features`)
+- Principle: Data Integrity (feature computation is point-in-time)
+
+---
+
 ## Future Decisions
 
 Additional implementation decisions will be recorded here as they are approved.

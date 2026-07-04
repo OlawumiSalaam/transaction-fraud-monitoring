@@ -30,9 +30,20 @@ from __future__ import annotations
 
 from datetime import timedelta
 
+import numpy as np
 import pandas as pd
 
+from tfm.observability.logging import get_logger
 from tfm.schema.evidence import FeatureVector
+
+_log = get_logger(__name__)
+
+# Progress-logging cadence for the offline feature-building stage (IMP-009).
+# Emitting one structured line every _PROGRESS_INTERVAL rows keeps a full-scale
+# PaySim run observable without perturbing feature semantics.  On small inputs
+# (unit/property tests) the interval is never reached, so only start/complete
+# lines are emitted.
+_PROGRESS_INTERVAL = 500_000
 
 # Ordered list of ML input feature columns.  Shared verbatim by the scorer
 # (M2), the rule engine (M3), and the evidence assembler (M4).
@@ -58,58 +69,6 @@ FEATURE_COLUMNS: list[str] = [
 ]
 
 
-def _account_features(group: pd.DataFrame) -> pd.DataFrame:
-    """Compute history-dependent features for a single account's transactions.
-
-    group must be sorted by event_ts ascending — guaranteed by build_features.
-    All computed values reference only rows at positions j < i in the group
-    (point-in-time invariant).
-    """
-    n = len(group)
-    timestamps = group["event_ts"].tolist()
-    amounts = group["amount"].tolist()
-    counterparties = group["counterparty_id"].tolist()
-
-    txn_count_24h = [0] * n
-    amount_sum_24h = [0.0] * n
-    is_new_cp = [True] * n
-    distinct_cp = [0] * n
-
-    seen_cps: set[str] = set()
-    lo = 0  # sliding-window left boundary for the 24 h lookback
-    window_count = 0
-    window_sum = 0.0
-
-    for i in range(n):
-        # Add the immediately preceding row to the sliding 24 h window.
-        if i > 0:
-            window_count += 1
-            window_sum += amounts[i - 1]
-
-        # Evict rows that have fallen outside the 24 h window.
-        cutoff = timestamps[i] - timedelta(hours=24)
-        while lo < i and timestamps[lo] < cutoff:
-            window_count -= 1
-            window_sum -= amounts[lo]
-            lo += 1
-
-        txn_count_24h[i] = window_count
-        amount_sum_24h[i] = window_sum
-
-        # Counterparty features: check against prior transactions only.
-        cp = counterparties[i]
-        is_new_cp[i] = cp not in seen_cps
-        distinct_cp[i] = len(seen_cps)
-        seen_cps.add(cp)
-
-    result = group.copy()
-    result["txn_count_24h"] = txn_count_24h
-    result["amount_sum_24h"] = amount_sum_24h
-    result["is_new_counterparty"] = is_new_cp
-    result["distinct_counterparties_seen"] = distinct_cp
-    return result
-
-
 def build_features(df: pd.DataFrame) -> pd.DataFrame:
     """Build point-in-time feature vectors for all transactions in the DataFrame.
 
@@ -122,12 +81,26 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     Critical invariant: for any row i (after sorting by account_id, event_ts),
     all history-dependent features (txn_count_24h, amount_sum_24h,
     is_new_counterparty, distinct_counterparties_seen) are computed from
-    rows j < i only.  The property test test_features_no_future_row verifies
-    this invariant.
+    rows j < i only.  The Hypothesis property tests
+    test_features_point_in_time_invariant and
+    test_features_counterparty_prior_transactions_invariant verify this.
+
+    Implementation note (IMP-009): the account-behavioural and counterparty
+    features are computed in a single linear pass over the globally
+    (account_id, event_ts)-sorted frame, resetting per-account window state at
+    each account boundary.  Because the global stable sort already places each
+    account's rows contiguously and in event_ts order, this pass is exactly
+    equivalent to the prior per-group traversal — same order, same tie-breaking,
+    same values — but allocates no per-account DataFrame and performs no
+    concatenation, so peak memory is O(N) with a small constant rather than
+    O(number-of-accounts) DataFrame objects.  The equivalence is pinned by
+    test_features_single_pass_matches_grouped_reference.
 
     Spec: §6.5, FR-5, R2 (Addendum §5 — temporal leakage guard).
     """
     df = df.sort_values(["account_id", "event_ts"], kind="stable").reset_index(drop=True)
+    n = len(df)
+    _log.info("feature_build_start", rows=n)
 
     # ── Transaction-intrinsic ─────────────────────────────────────────────────
     df["type_payment"] = df["type"] == "PAYMENT"
@@ -146,13 +119,74 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 
     df["orig_account_emptied"] = (bal_before > 0) & (bal_after == 0.0)
 
-    # ── Account-behavioural and counterparty (point-in-time, per account) ────
-    account_groups = []
-    for _, grp in df.groupby("account_id", sort=False):
-        grp_sorted = grp.sort_values("event_ts", kind="stable")
-        account_groups.append(_account_features(grp_sorted))
+    # ── Account-behavioural and counterparty (point-in-time, single pass) ─────
+    # Column views extracted once for the whole frame (not per account group).
+    # account_ids / counterparties reference the frame's existing Python
+    # objects (object dtype) — no per-row string duplication.
+    account_ids = df["account_id"].to_numpy()
+    counterparties = df["counterparty_id"].to_numpy()
+    amounts = df["amount"].to_numpy()
+    # Timestamps kept as pandas Timestamp objects so the 24 h lookback arithmetic
+    # is byte-for-byte identical to the reference implementation's timedelta math.
+    timestamps = df["event_ts"].tolist()
 
-    df = pd.concat(account_groups).sort_index()
+    txn_count_24h = np.zeros(n, dtype=np.int64)
+    amount_sum_24h = np.zeros(n, dtype=np.float64)
+    is_new_cp = np.ones(n, dtype=bool)
+    distinct_cp = np.zeros(n, dtype=np.int64)
+
+    window = timedelta(hours=24)
+    seen_cps: set[object] = set()
+    lo = 0  # sliding-window left boundary for the current account's 24 h lookback
+    acct_start = 0  # index of the first row of the current account
+    window_count = 0
+    window_sum = 0.0
+    prev_acct: object = None
+    started = False
+
+    for i in range(n):
+        acct = account_ids[i]
+        if not started or acct != prev_acct:
+            # Account boundary: reset all per-account traversal state.  This
+            # reproduces the per-group loop's i == 0 initial conditions exactly.
+            seen_cps = set()
+            lo = i
+            acct_start = i
+            window_count = 0
+            window_sum = 0.0
+            prev_acct = acct
+            started = True
+
+        # Add the immediately preceding row (same account) to the 24 h window.
+        if i > acct_start:
+            window_count += 1
+            window_sum += amounts[i - 1]
+
+        # Evict rows that have fallen outside the 24 h window.
+        cutoff = timestamps[i] - window
+        while lo < i and timestamps[lo] < cutoff:
+            window_count -= 1
+            window_sum -= amounts[lo]
+            lo += 1
+
+        txn_count_24h[i] = window_count
+        amount_sum_24h[i] = window_sum
+
+        # Counterparty features: check against prior transactions only.
+        cp = counterparties[i]
+        is_new_cp[i] = cp not in seen_cps
+        distinct_cp[i] = len(seen_cps)
+        seen_cps.add(cp)
+
+        if (i + 1) % _PROGRESS_INTERVAL == 0:
+            _log.info("feature_build_progress", processed=i + 1, total=n)
+
+    df["txn_count_24h"] = txn_count_24h
+    df["amount_sum_24h"] = amount_sum_24h
+    df["is_new_counterparty"] = is_new_cp
+    df["distinct_counterparties_seen"] = distinct_cp
+
+    _log.info("feature_build_complete", rows=n)
     return df
 
 

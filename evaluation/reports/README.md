@@ -1,0 +1,2 @@
+# Evaluation reports
+The reports in evaluation/reports/ are committed for the hackathon submission to document the real PaySim training run and leakage-gate outcome. In a production repository these would typically be generated artifacts rather than version-controlled files.

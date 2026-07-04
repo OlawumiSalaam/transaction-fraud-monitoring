@@ -1,0 +1,475 @@
+{
+  "model_version_id": "tfm-scorer-20260703224313",
+  "trained_at": "2026-07-03T22:52:20.795008+00:00",
+  "seed": 42,
+  "selected_candidate": "tfm-scorer-20260703224313",
+  "selected_eligible": false,
+  "candidate_reports": [
+    {
+      "name": "histgb_interpretable",
+      "is_primary": true,
+      "feature_columns": [
+        "amount",
+        "type_payment",
+        "type_transfer",
+        "type_cash_out",
+        "type_cash_in",
+        "type_debit",
+        "bal_orig_before",
+        "bal_orig_after",
+        "frac_bal_orig_moved",
+        "orig_account_emptied",
+        "txn_count_24h",
+        "amount_sum_24h",
+        "is_new_counterparty",
+        "distinct_counterparties_seen"
+      ],
+      "calibration_method": "isotonic",
+      "metrics": {
+        "pr_auc": 0.9982941166796856,
+        "precision": 1.0,
+        "recall": 0.9932810750279956,
+        "roc_auc": 0.9991597803325779,
+        "brier": 0.00006924607954857439,
+        "eval_threshold": 0.5,
+        "n": 160723,
+        "n_positive": 1786
+      },
+      "leakage_verdict": {
+        "verdict": "fail",
+        "rationale": "The model appears to ride balance-consistency artefacts: behavioural performance collapses without the balance artefacts (remaining PR-AUC 0.3365 < default 0.50); full-model performance depends heavily on the balance artefacts (ablation delta 0.6626 > default 0.20). Balance-artifact features hold 98.5% of total permutation importance. Under FR-4/FR-26 the model is ineligible regardless of its headline metrics; remediation (feature curation / model change) is required before it can advance. Verdict: FAIL.",
+        "evidence": {
+          "full_metrics": {
+            "pr_auc": 0.9991073854816666,
+            "precision": 0.9894561598224195,
+            "recall": 0.9983202687569989,
+            "roc_auc": 0.9999415242959945,
+            "brier": 0.00044853682816510396,
+            "eval_threshold": 0.5,
+            "n": 160723,
+            "n_positive": 1786
+          },
+          "ablated_metrics": {
+            "pr_auc": 0.33654574861912034,
+            "precision": 0.056936519969676413,
+            "recall": 0.7989921612541994,
+            "roc_auc": 0.9187670573071974,
+            "brier": 0.12185398099754666,
+            "eval_threshold": 0.5,
+            "n": 160723,
+            "n_positive": 1786
+          },
+          "pr_auc_delta": 0.6625616368625462,
+          "remaining_behavioural_pr_auc": 0.33654574861912034,
+          "balance_artifact_features": [
+            "bal_orig_before",
+            "bal_orig_after",
+            "frac_bal_orig_moved",
+            "orig_account_emptied"
+          ],
+          "balance_artifact_importance_share": 0.9845530304740643,
+          "top_importances": [
+            {
+              "name": "frac_bal_orig_moved",
+              "importance": 0.9689404158216346
+            },
+            {
+              "name": "orig_account_emptied",
+              "importance": 0.9606071962201195
+            },
+            {
+              "name": "amount",
+              "importance": 0.027148090685221372
+            },
+            {
+              "name": "type_cash_out",
+              "importance": 0.0026264750841403783
+            },
+            {
+              "name": "bal_orig_after",
+              "importance": 0.001206971808600188
+            },
+            {
+              "name": "bal_orig_before",
+              "importance": 0.0011756778223581455
+            },
+            {
+              "name": "type_transfer",
+              "importance": 0.0005209336722948432
+            },
+            {
+              "name": "type_cash_in",
+              "importance": 0.000015176524595839069
+            },
+            {
+              "name": "type_debit",
+              "importance": 0.0
+            },
+            {
+              "name": "txn_count_24h",
+              "importance": 0.0
+            },
+            {
+              "name": "amount_sum_24h",
+              "importance": 0.0
+            },
+            {
+              "name": "is_new_counterparty",
+              "importance": 0.0
+            },
+            {
+              "name": "distinct_counterparties_seen",
+              "importance": 0.0
+            },
+            {
+              "name": "type_payment",
+              "importance": -0.00003785306023109669
+            }
+          ]
+        },
+        "applied_defaults": {
+          "min_behavioural_pr_auc": 0.5,
+          "max_ablation_pr_auc_delta": 0.2,
+          "importance_repeats": 5.0
+        }
+      }
+    },
+    {
+      "name": "lightgbm_kitchen_sink",
+      "is_primary": false,
+      "feature_columns": [
+        "amount",
+        "type_payment",
+        "type_transfer",
+        "type_cash_out",
+        "type_cash_in",
+        "type_debit",
+        "bal_orig_before",
+        "bal_orig_after",
+        "frac_bal_orig_moved",
+        "orig_account_emptied",
+        "txn_count_24h",
+        "amount_sum_24h",
+        "is_new_counterparty",
+        "distinct_counterparties_seen",
+        "bal_dest_before",
+        "bal_dest_after"
+      ],
+      "calibration_method": "isotonic",
+      "metrics": {
+        "pr_auc": 0.21874051969027652,
+        "precision": 0.0,
+        "recall": 0.0,
+        "roc_auc": 0.9743175264617269,
+        "brier": 0.00905806864418765,
+        "eval_threshold": 0.5,
+        "n": 160723,
+        "n_positive": 1786
+      },
+      "leakage_verdict": {
+        "verdict": "fail",
+        "rationale": "The model appears to ride balance-consistency artefacts: behavioural performance collapses without the balance artefacts (remaining PR-AUC 0.0346 < default 0.50). Balance-artifact features hold 65.6% of total permutation importance. Under FR-4/FR-26 the model is ineligible regardless of its headline metrics; remediation (feature curation / model change) is required before it can advance. Verdict: FAIL.",
+        "evidence": {
+          "full_metrics": {
+            "pr_auc": 0.21874051969027652,
+            "precision": 0.22132998745294855,
+            "recall": 0.9876819708846585,
+            "roc_auc": 0.9743175264617269,
+            "brier": 0.03874989889437106,
+            "eval_threshold": 0.5,
+            "n": 160723,
+            "n_positive": 1786
+          },
+          "ablated_metrics": {
+            "pr_auc": 0.03461576770705623,
+            "precision": 0.03970273552715285,
+            "recall": 0.7687569988801791,
+            "roc_auc": 0.7596381181438345,
+            "brier": 0.2061295363099057,
+            "eval_threshold": 0.5,
+            "n": 160723,
+            "n_positive": 1786
+          },
+          "pr_auc_delta": 0.1841247519832203,
+          "remaining_behavioural_pr_auc": 0.03461576770705623,
+          "balance_artifact_features": [
+            "bal_orig_before",
+            "bal_orig_after",
+            "frac_bal_orig_moved",
+            "orig_account_emptied"
+          ],
+          "balance_artifact_importance_share": 0.6564450696927666,
+          "top_importances": [
+            {
+              "name": "orig_account_emptied",
+              "importance": 0.2039242876357339
+            },
+            {
+              "name": "frac_bal_orig_moved",
+              "importance": 0.18399767601491263
+            },
+            {
+              "name": "bal_orig_before",
+              "importance": 0.0994606311845654
+            },
+            {
+              "name": "type_payment",
+              "importance": 0.09011722217488868
+            },
+            {
+              "name": "bal_dest_after",
+              "importance": 0.08438106891112651
+            },
+            {
+              "name": "type_cash_out",
+              "importance": 0.02664667262244354
+            },
+            {
+              "name": "type_transfer",
+              "importance": 0.023960874039583385
+            },
+            {
+              "name": "bal_dest_before",
+              "importance": 0.01550682312615848
+            },
+            {
+              "name": "amount",
+              "importance": 0.014462289235390845
+            },
+            {
+              "name": "type_cash_in",
+              "importance": 0.0
+            },
+            {
+              "name": "type_debit",
+              "importance": 0.0
+            },
+            {
+              "name": "txn_count_24h",
+              "importance": 0.0
+            },
+            {
+              "name": "amount_sum_24h",
+              "importance": 0.0
+            },
+            {
+              "name": "is_new_counterparty",
+              "importance": 0.0
+            },
+            {
+              "name": "distinct_counterparties_seen",
+              "importance": 0.0
+            },
+            {
+              "name": "bal_orig_after",
+              "importance": -0.0034106996981340286
+            }
+          ]
+        },
+        "applied_defaults": {
+          "min_behavioural_pr_auc": 0.5,
+          "max_ablation_pr_auc_delta": 0.2,
+          "importance_repeats": 5.0
+        }
+      }
+    },
+    {
+      "name": "logistic_floor",
+      "is_primary": false,
+      "feature_columns": [
+        "amount",
+        "type_payment",
+        "type_transfer",
+        "type_cash_out",
+        "type_cash_in",
+        "type_debit",
+        "bal_orig_before",
+        "bal_orig_after",
+        "frac_bal_orig_moved",
+        "orig_account_emptied",
+        "txn_count_24h",
+        "amount_sum_24h",
+        "is_new_counterparty",
+        "distinct_counterparties_seen"
+      ],
+      "calibration_method": "isotonic",
+      "metrics": {
+        "pr_auc": 0.8512808251760176,
+        "precision": 0.8843587842846553,
+        "recall": 0.667973124300112,
+        "roc_auc": 0.9949773742109893,
+        "brier": 0.0034563782678382862,
+        "eval_threshold": 0.5,
+        "n": 160723,
+        "n_positive": 1786
+      },
+      "leakage_verdict": null
+    }
+  ],
+  "df1": {
+    "interpretable": {
+      "name": "histgb_interpretable",
+      "pr_auc": 0.9982941166796856,
+      "precision": 1.0,
+      "recall": 0.9932810750279956,
+      "brier": 0.00006924607954857439,
+      "leakage_verdict": "fail"
+    },
+    "kitchen_sink": {
+      "name": "lightgbm_kitchen_sink",
+      "pr_auc": 0.21874051969027652,
+      "precision": 0.0,
+      "recall": 0.0,
+      "brier": 0.00905806864418765,
+      "leakage_verdict": "fail"
+    },
+    "pr_auc_delta_kitchen_minus_interpretable": -0.7795535969894091,
+    "interpretability_decision": "interpretable primary retained",
+    "all_candidates": [
+      {
+        "name": "histgb_interpretable",
+        "pr_auc": 0.9982941166796856,
+        "precision": 1.0,
+        "recall": 0.9932810750279956,
+        "brier": 0.00006924607954857439,
+        "leakage_verdict": "fail"
+      },
+      {
+        "name": "lightgbm_kitchen_sink",
+        "pr_auc": 0.21874051969027652,
+        "precision": 0.0,
+        "recall": 0.0,
+        "brier": 0.00905806864418765,
+        "leakage_verdict": "fail"
+      },
+      {
+        "name": "logistic_floor",
+        "pr_auc": 0.8512808251760176,
+        "precision": 0.8843587842846553,
+        "recall": 0.667973124300112,
+        "brier": 0.0034563782678382862,
+        "leakage_verdict": null
+      }
+    ]
+  },
+  "calibration": {
+    "method": "isotonic",
+    "brier_before": 0.0004895028601117816,
+    "brier_after": 6.762569926851536e-6,
+    "n_bins": 10,
+    "bins": [
+      {
+        "bin_lower": 0.0,
+        "bin_upper": 0.1,
+        "mean_predicted": 7.182618064284432e-6,
+        "fraction_positive": 7.182618064284432e-6,
+        "count": 139225
+      },
+      {
+        "bin_lower": 0.9,
+        "bin_upper": 1.0,
+        "mean_predicted": 1.0,
+        "fraction_positive": 1.0,
+        "count": 865
+      }
+    ]
+  },
+  "selected_leakage_verdict": {
+    "verdict": "fail",
+    "rationale": "The model appears to ride balance-consistency artefacts: behavioural performance collapses without the balance artefacts (remaining PR-AUC 0.3365 < default 0.50); full-model performance depends heavily on the balance artefacts (ablation delta 0.6626 > default 0.20). Balance-artifact features hold 98.5% of total permutation importance. Under FR-4/FR-26 the model is ineligible regardless of its headline metrics; remediation (feature curation / model change) is required before it can advance. Verdict: FAIL.",
+    "evidence": {
+      "full_metrics": {
+        "pr_auc": 0.9991073854816666,
+        "precision": 0.9894561598224195,
+        "recall": 0.9983202687569989,
+        "roc_auc": 0.9999415242959945,
+        "brier": 0.00044853682816510396,
+        "eval_threshold": 0.5,
+        "n": 160723,
+        "n_positive": 1786
+      },
+      "ablated_metrics": {
+        "pr_auc": 0.33654574861912034,
+        "precision": 0.056936519969676413,
+        "recall": 0.7989921612541994,
+        "roc_auc": 0.9187670573071974,
+        "brier": 0.12185398099754666,
+        "eval_threshold": 0.5,
+        "n": 160723,
+        "n_positive": 1786
+      },
+      "pr_auc_delta": 0.6625616368625462,
+      "remaining_behavioural_pr_auc": 0.33654574861912034,
+      "balance_artifact_features": [
+        "bal_orig_before",
+        "bal_orig_after",
+        "frac_bal_orig_moved",
+        "orig_account_emptied"
+      ],
+      "balance_artifact_importance_share": 0.9845530304740643,
+      "top_importances": [
+        {
+          "name": "frac_bal_orig_moved",
+          "importance": 0.9689404158216346
+        },
+        {
+          "name": "orig_account_emptied",
+          "importance": 0.9606071962201195
+        },
+        {
+          "name": "amount",
+          "importance": 0.027148090685221372
+        },
+        {
+          "name": "type_cash_out",
+          "importance": 0.0026264750841403783
+        },
+        {
+          "name": "bal_orig_after",
+          "importance": 0.001206971808600188
+        },
+        {
+          "name": "bal_orig_before",
+          "importance": 0.0011756778223581455
+        },
+        {
+          "name": "type_transfer",
+          "importance": 0.0005209336722948432
+        },
+        {
+          "name": "type_cash_in",
+          "importance": 0.000015176524595839069
+        },
+        {
+          "name": "type_debit",
+          "importance": 0.0
+        },
+        {
+          "name": "txn_count_24h",
+          "importance": 0.0
+        },
+        {
+          "name": "amount_sum_24h",
+          "importance": 0.0
+        },
+        {
+          "name": "is_new_counterparty",
+          "importance": 0.0
+        },
+        {
+          "name": "distinct_counterparties_seen",
+          "importance": 0.0
+        },
+        {
+          "name": "type_payment",
+          "importance": -0.00003785306023109669
+        }
+      ]
+    },
+    "applied_defaults": {
+      "min_behavioural_pr_auc": 0.5,
+      "max_ablation_pr_auc_delta": 0.2,
+      "importance_repeats": 5.0
+    }
+  }
+}

@@ -13,6 +13,7 @@ from __future__ import annotations
 from datetime import timedelta
 
 import pandas as pd
+import pandas.testing as pdt
 from hypothesis import assume, given, settings
 from hypothesis import strategies as st
 
@@ -385,3 +386,169 @@ def test_features_counterparty_prior_transactions_invariant(rows: list[dict]) ->
                 f"distinct_counterparties_seen violation for account={acct_id!r}, "
                 f"row={i}: got {actual_distinct}, expected {expected_distinct}"
             )
+
+
+# ── EQUIVALENCE REGRESSION: single-pass output == grouped reference (IMP-009) ──
+#
+# The production build_features was optimised (IMP-009) from a per-account
+# groupby/concat implementation to a single linear pass over the globally
+# (account_id, event_ts)-sorted frame, to remove an O(number-of-accounts)
+# DataFrame-object memory footprint that destabilised full-scale PaySim runs.
+#
+# _reference_grouped_build below is the *frozen* pre-optimisation grouped
+# implementation, retained here (and only here) as a reference oracle.  The
+# regression test asserts the optimised build_features reproduces it exactly on
+# a representative, shuffled multi-account dataset.  This oracle is deliberately
+# NOT imported from production code: production carries a single implementation
+# (no dead code), and this test remains a permanent guard that any future change
+# to build_features preserves the exact engineered feature values.
+
+
+def _reference_account_features(group: pd.DataFrame) -> pd.DataFrame:
+    """Frozen pre-IMP-009 per-account history features (reference oracle)."""
+    n = len(group)
+    timestamps = group["event_ts"].tolist()
+    amounts = group["amount"].tolist()
+    counterparties = group["counterparty_id"].tolist()
+
+    txn_count_24h = [0] * n
+    amount_sum_24h = [0.0] * n
+    is_new_cp = [True] * n
+    distinct_cp = [0] * n
+
+    seen_cps: set[str] = set()
+    lo = 0
+    window_count = 0
+    window_sum = 0.0
+
+    for i in range(n):
+        if i > 0:
+            window_count += 1
+            window_sum += amounts[i - 1]
+
+        cutoff = timestamps[i] - timedelta(hours=24)
+        while lo < i and timestamps[lo] < cutoff:
+            window_count -= 1
+            window_sum -= amounts[lo]
+            lo += 1
+
+        txn_count_24h[i] = window_count
+        amount_sum_24h[i] = window_sum
+
+        cp = counterparties[i]
+        is_new_cp[i] = cp not in seen_cps
+        distinct_cp[i] = len(seen_cps)
+        seen_cps.add(cp)
+
+    result = group.copy()
+    result["txn_count_24h"] = txn_count_24h
+    result["amount_sum_24h"] = amount_sum_24h
+    result["is_new_counterparty"] = is_new_cp
+    result["distinct_counterparties_seen"] = distinct_cp
+    return result
+
+
+def _reference_grouped_build(df: pd.DataFrame) -> pd.DataFrame:
+    """Frozen pre-IMP-009 grouped build_features (reference oracle)."""
+    df = df.sort_values(["account_id", "event_ts"], kind="stable").reset_index(drop=True)
+
+    df["type_payment"] = df["type"] == "PAYMENT"
+    df["type_transfer"] = df["type"] == "TRANSFER"
+    df["type_cash_out"] = df["type"] == "CASH_OUT"
+    df["type_cash_in"] = df["type"] == "CASH_IN"
+    df["type_debit"] = df["type"] == "DEBIT"
+
+    bal_before = df["bal_orig_before"].fillna(0.0)
+    bal_after = df["bal_orig_after"].fillna(0.0)
+    bal_before_safe = bal_before.where(bal_before > 0)
+    df["frac_bal_orig_moved"] = df["amount"] / bal_before_safe
+    df["orig_account_emptied"] = (bal_before > 0) & (bal_after == 0.0)
+
+    account_groups = []
+    for _, grp in df.groupby("account_id", sort=False):
+        grp_sorted = grp.sort_values("event_ts", kind="stable")
+        account_groups.append(_reference_account_features(grp_sorted))
+
+    return pd.concat(account_groups).sort_index()
+
+
+# Every column build_features engineers (a superset of the ML FEATURE_COLUMNS
+# plus the None-carrying frac_bal_orig_moved), compared value-for-value.
+_ENGINEERED_COLUMNS = [
+    "type_payment",
+    "type_transfer",
+    "type_cash_out",
+    "type_cash_in",
+    "type_debit",
+    "frac_bal_orig_moved",
+    "orig_account_emptied",
+    "txn_count_24h",
+    "amount_sum_24h",
+    "is_new_counterparty",
+    "distinct_counterparties_seen",
+]
+
+
+def _representative_dataset() -> pd.DataFrame:
+    """A representative, deliberately shuffled multi-account PaySim-like frame.
+
+    Exercises: single- and multi-transaction accounts, repeated and new
+    counterparties, the 24 h window boundary (evicted and retained prior rows),
+    every transaction type, merchant and non-merchant destinations, and zero /
+    non-zero origin balances.  Input order is shuffled to also prove that the
+    optimised traversal is invariant to input ordering.
+    """
+    rows: list[dict] = []
+    types = ["PAYMENT", "TRANSFER", "CASH_OUT", "CASH_IN", "DEBIT"]
+    counterparties = ["M1", "M2", "C900", "C901", "C902"]
+
+    # 12 accounts, varying history lengths, steps spanning >24 h boundaries.
+    for a in range(12):
+        acct = f"C{a:03d}"
+        n_txns = 1 + (a % 6) * 3  # 1, 1, 4, 7, 10, 13, 1, ...
+        for k in range(n_txns):
+            # Steps chosen so some prior rows fall inside and some outside 24 h.
+            step = 1 + k * (13 + (a % 5)) + (k % 3)
+            bal_before = 0.0 if (a + k) % 7 == 0 else float(1000 + 137 * k + 11 * a)
+            bal_after = 0.0 if (k % 4 == 0 and bal_before > 0) else max(bal_before - 100.0, 0.0)
+            rows.append(
+                {
+                    "account_id": acct,
+                    "step": step,
+                    "amount": float(50 + 37 * k + 5 * a),
+                    "type": types[(a + k) % len(types)],
+                    "counterparty_id": counterparties[(a * 2 + k) % len(counterparties)],
+                    "bal_orig_before": bal_before,
+                    "bal_orig_after": bal_after,
+                }
+            )
+
+    df = _make_df(rows)
+    # Deterministic shuffle to prove ordering-invariance of the traversal.
+    return df.sample(frac=1.0, random_state=20260703).reset_index(drop=True)
+
+
+def test_single_pass_matches_grouped_reference() -> None:
+    """The optimised single-pass build_features == the frozen grouped reference.
+
+    Asserts identical values for every engineered feature column on a
+    representative shuffled multi-account dataset (IMP-009).  Guards the
+    point-in-time invariants (R2) against future changes to the optimised path.
+    """
+    df = _representative_dataset()
+
+    produced = build_features(df.copy()).reset_index(drop=True)
+    reference = _reference_grouped_build(df.copy()).reset_index(drop=True)
+
+    # Row identity must align first: same rows in the same (account_id, event_ts)
+    # order, so a column-wise comparison is meaningful.
+    pdt.assert_series_equal(produced["txn_id"], reference["txn_id"], check_names=True)
+
+    for col in _ENGINEERED_COLUMNS:
+        pdt.assert_series_equal(
+            produced[col],
+            reference[col],
+            check_exact=True,
+            check_names=True,
+            obj=f"engineered column {col!r}",
+        )
