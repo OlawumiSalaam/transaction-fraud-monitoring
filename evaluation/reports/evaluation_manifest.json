@@ -1,0 +1,34 @@
+{
+  "generated_at": "2026-07-05T08:57:47.679279+00:00",
+  "model_version_id": "tfm-scorer-20260704053632",
+  "dataset": "PaySim (synthetic)",
+  "leakage_verdict": "fail",
+  "scorer_eligible": false,
+  "artifacts": [
+    {
+      "name": "evaluation_summary",
+      "path": "evaluation/reports/evaluation_summary.json",
+      "source": "M9 (consolidated)"
+    },
+    {
+      "name": "grounding_report",
+      "path": "evaluation/reports/grounding_report.json",
+      "source": "M9 (computed)"
+    },
+    {
+      "name": "training_report",
+      "path": "evaluation/reports/tfm-scorer-20260704053632_training_report.json",
+      "source": "M2 (verbatim)"
+    },
+    {
+      "name": "leakage_verdict",
+      "path": "evaluation/reports/leakage_verdict.json",
+      "source": "M2 (verbatim)"
+    },
+    {
+      "name": "model_artifact",
+      "path": "models/scorer.joblib",
+      "source": "M2 (committed)"
+    }
+  ]
+}

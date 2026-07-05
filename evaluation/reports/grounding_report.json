@@ -1,0 +1,23 @@
+{
+  "sample": "synthetic PaySim-shaped cases (held-out; not the operational store)",
+  "n_cases": 6,
+  "llm_enabled": false,
+  "ungrounded_statement_rate": {
+    "value": 0.0,
+    "label": "measured",
+    "note": "fraction of explanations with any ungrounded number/entity; \u22480 on the templated floor"
+  },
+  "total_ungrounded_tokens": {
+    "value": 0,
+    "label": "measured",
+    "note": null
+  },
+  "templated_fallback_rate": {
+    "value": 1.0,
+    "label": "measured",
+    "note": "share on the templated pathway; 1.0 with the LLM disabled (NFR-2 floor)"
+  },
+  "pathway_counts": {
+    "templated": 6
+  }
+}

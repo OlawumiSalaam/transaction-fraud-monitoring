@@ -795,3 +795,74 @@ immune to template change; missing-disposition raises. Strengthened
 - BL-M8-02: per-stage audit events (Release Plan B11, FR-20).
 - BL-M8-03: public reconstruction/governance API endpoint (integration concern; the audit model
   already supports it without change).
+
+
+---
+
+## M9 — Offline Evaluation Pipeline (reproducible)
+
+Status: complete (pending review). Consolidation milestone: one command produces the
+submission's evaluation evidence from the committed M2 artifacts plus a freshly-measured
+grounding report, every number labelled measured or modelled-estimate, with the leakage
+verdict surfaced alongside the headline metrics. No new model/rule/UI logic; the offline
+path stays fully separate from the online path (nothing feeds back).
+
+### Completed
+
+- **Measured/modelled labelling** (`evaluation/labels.py`): `Label`, `LabelledValue`, and
+  `measured(...)` / `modelled(...)` so no number reads as an unqualified performance claim (§7).
+- **Grounding-integrity report** (`evaluation/grounding_report.py`): runs the deterministic
+  grounding gate over a held-out synthetic sample of assembled explanations; measures the
+  ungrounded-statement rate (**0.0** on the templated floor) and the templated-pathway rate
+  (FR-11, FR-24, §8.2). Genuinely measured — the evidence set is known on synthetic cases.
+- **One-command consolidator** (`evaluation/run_all.py` → `python -m evaluation.run_all`, with
+  `PYTHONPATH=src` locally; the image sets it): reads the committed M2 evidence **verbatim**
+  (model metrics + eligibility + model version from `models/scorer.joblib`; full leakage verdict
+  from `evaluation/reports/leakage_verdict.json`) and emits three artifacts under
+  `evaluation/reports/`:
+  - `evaluation_summary.json` — headline leads with **SCORER INELIGIBLE / leakage FAIL** and the
+    eligibility flag, then the metrics inline (each labelled `modelled_estimate` and noting
+    ineligibility); plus the full leakage rationale, calibration, grounding, provenance, and
+    synthetic-data disclosures.
+  - `grounding_report.json` — the measured grounding integrity.
+  - `evaluation_manifest.json` — single source of truth for M10 packaging (artifacts, model
+    version, dataset, leakage verdict, timestamp) with no hardcoded filenames.
+
+### Confirmations (checkable)
+
+- **Verbatim sourcing:** the five headline metrics in `evaluation_summary.json` are identical to
+  the committed scorer manifest (`pr_auc 0.3208540251741047`, `precision 0.975609756097561`,
+  `recall 0.1791713325867861`, `roc_auc 0.9174461524864441`, `brier 0.008552993651225258`) —
+  read, not regenerated (asserted by `test_summary_metrics_are_committed_m2_values_verbatim`).
+- **Honest framing:** the leakage FAIL and `scorer_eligible=false` lead the headline block inline
+  with the metrics, so the numbers cannot be read as a performance claim.
+
+### Traceability
+
+FR-22 (metrics), FR-23 (calibration), FR-24 (grounding-rate ≈ 0), FR-26 (leakage verdict); §7,
+§8.1–8.2; Release Plan §M9; Principle: honest reporting (measured vs modelled estimate).
+
+### Verification
+
+`tests/unit/test_evaluation.py` (5): grounding ≈0 ungrounded on the templated floor; **metrics
+verbatim from the committed M2 artifact**; leakage verdict surfaced alongside the metrics; every
+reported number labelled; manifest is a single source of truth. `python -m evaluation.run_all`
+regenerates the three report artifacts. Full suite: **248 passed**; Ruff + `ruff format --check`
++ mypy clean (evaluation type-checked).
+
+### Assumptions / Deviations
+
+- Model metrics/eligibility/leakage verdict are **consumed from the committed M2 artifacts,
+  unchanged** — no retrain/recalibrate/regenerate (per approval).
+- **FR-25 subgroup / false-positive-burden and threshold sensitivity are deferred** per the
+  Release Plan (B12); not in M9. (Impl Plan divergence resolved by precedence.)
+- No evaluation notebook (script-driven only, per approval).
+
+### Implementation Concerns
+
+- None. (Scope boundaries — verbatim consumption, FR-25 deferral, script-only — were pre-approved.)
+
+### Backlog
+
+- BL-M9-01: subgroup / false-positive-burden analysis (FR-25; Release Plan B12).
+- BL-M9-02: threshold-sensitivity sweep (deferred with FR-25).
