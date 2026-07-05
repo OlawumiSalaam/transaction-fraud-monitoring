@@ -43,4 +43,5 @@ def post_disposition(
         rationale=body.rationale,
         follow_up=body.follow_up,
         analyst_id=analyst_id,
+        llm_enabled=settings.llm_enabled,
     )
