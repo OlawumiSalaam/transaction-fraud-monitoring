@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from tfm.audit.log import AuditWriter
+from tfm.audit.snapshot import SNAPSHOT_VERSION
 from tfm.config.settings import Settings, load_config
 from tfm.persistence.models import AuditLog
 from tfm.schema.entities import Counterparty, Transaction, TransactionType
@@ -264,21 +265,31 @@ def test_disposition_audit_snapshot_is_complete(session: Session) -> None:
     record = session.scalars(select(AuditLog).where(AuditLog.case_id == case_id)).one()
     p = record.payload
     assert record.event_type == "disposition_recorded"
+    assert p["snapshot_version"] == SNAPSHOT_VERSION
     for key in (
         "case_id",
-        "evidence_shown",
-        "score_status",
-        "recommendation",
-        "disposition",
-        "explanation_pathway",
+        "txn_id",
         "analyst_id",
         "recorded_at",
+        "evidence",
+        "recommendation",
+        "explanation",
+        "disposition",
+        "routing",
+        "provenance",
     ):
-        assert key in p, f"audit snapshot missing {key}"
+        assert key in p, f"decision snapshot missing {key}"
+    # Explanation completeness — the M8 gap closed: text + grounding, not just pathway.
+    assert p["explanation"]["text"]
+    assert p["explanation"]["pathway"] == "templated"
+    assert "grounding" in p["explanation"]
+    # Routing state captured (reproducible without the operational cases table).
+    assert p["routing"]["status"] == "escalated"
+    assert p["routing"]["routed_to"] == "escalation"
     for key in ("action", "reason_code", "rationale", "deviated_from_recommendation", "follow_up"):
         assert key in p["disposition"], f"disposition snapshot missing {key}"
     assert p["analyst_id"] == "analyst-7"
-    assert p["score_status"]["score"] is None  # FR-4 excluded: no fabricated score
+    assert p["provenance"]["score_available"] is False  # FR-4 excluded: no fabricated score
 
 
 # ── Render helpers (analyst language + no-default disposition) ─────────────────

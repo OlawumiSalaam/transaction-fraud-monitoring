@@ -696,3 +696,102 @@ incl. the graceful-degradation `200`/templated contract. Demo seed smoke-run pro
   explanation pathway, identity, timestamp) — asserted by a completeness test.
 - **Demo-ready**: `scripts/seed_cases.py` opens the queue on strong cases; the ~3-minute judge
   walkthrough (queue → open → review → drill → decide → justify → route → audit) runs end to end.
+
+
+---
+
+## M8 — Audit Completion & Reconstructability
+
+Status: complete (pending review). Cross-cutting; completed after M7. Guarantees that
+every analyst decision is **fully reconstructable from the audit log alone** (NFR-3),
+through the single `disposition_recorded` event the Release Plan mandates. No new fraud
+logic, no new UI, no public reconstruction endpoint (deferred as an integration concern).
+
+### Completed
+
+- **Typed, versioned decision snapshot** (`src/tfm/audit/snapshot.py`): `DecisionSnapshot`
+  (+ `DispositionSnapshot`, `RoutingSnapshot`, `Provenance`) with `SNAPSHOT_VERSION`, and
+  `build_decision_snapshot(...)`. Embeds the **rendered** M4/M5/M6 artifacts
+  (`EvidencePackage`, `Recommendation`, `Explanation` incl. text + grounding), the
+  disposition, the routing state as-decided, provenance stamps, identity, and timestamp.
+- **Reconstruction service** (`src/tfm/audit/reconstruct.py`): `reconstruct_decision(session,
+  case_id) -> ReconstructedDecision` — **pure deserialization** of the single
+  `disposition_recorded` payload; reads only `audit_log`; invokes no rule engine,
+  recommendation policy, explanation, grounding, or configuration. `DecisionNotReconstructable`
+  when no disposition exists.
+- **Disposition service completion** (`services/disposition_service.py`): writes the typed
+  `DecisionSnapshot` (closing the two M7 gaps — the explanation **text + grounding** and the
+  **routing outcome** are now in the record), composing the exact case view at write time so
+  the frozen record equals what the analyst saw.
+- **Append-only** stays enforced at the service layer (insert-only `AuditWriter`); **no
+  migration and no DB trigger added** in M8, preserving the verified SQLite and Docker Compose
+  run paths. DB-level append-only enforcement is a named post-hackathon hardening item (below).
+
+### Architectural confirmations
+
+- **Deterministic reconstruction:** reconstruction is deserialization, never recomputation —
+  proven by `test_reconstruct_invokes_no_decision_logic` (every decision component patched to
+  raise; reconstruction still succeeds) and `test_reconstruct_is_immune_to_template_change`
+  (explainer rewritten; reconstruction returns the original stored text).
+- **Scope of reconstruction:** M8 reconstructs the **historical decision that was presented and
+  recorded** — the evidence shown, the recommendation and its basis, the disposition and
+  rationale, and the decision-driving parameters — **not the entire runtime environment**.
+  Current case state and non-decision operational configuration intentionally remain live
+  references, because they are not part of the historical analyst decision.
+- **Snapshot boundaries:** immutable (embedded) = EvidencePackage (incl. the **decision-driving
+  rule parameters** frozen in each fired rule's evidence — e.g. `min_fraction_of_balance: 0.9`,
+  `amount_threshold: 200000.0`), Recommendation (the outcome those parameters produced — action,
+  score_band, basis rule_ids, uncertainty), Explanation, Disposition, Routing-as-decided,
+  provenance, identity, timestamps. Live references (never frozen) = the case's **current**
+  status, the canonical transaction/account rows, and **non-decision** operational config/model
+  files.
+- **Decision-driving config is frozen (confirmed):** the thresholds/rule parameters that produced
+  this recommendation are recorded values inside the snapshot's evidence (`definitions.py` writes
+  each rule's parameter into `RuleHit.evidence`; the assembler carries it verbatim), and the
+  recommendation outcome is frozen. Reconstructing a past decision after a `rules.yaml` /
+  `thresholds.yaml` change therefore shows the values in effect **then, not now** — never
+  re-reading live config. Under FR-4 the operational scorer is excluded, so score-band thresholds
+  are moot (`score_band = none`).
+- **Replay guarantee:** the five objects (EvidencePackage, Recommendation, Explanation,
+  Disposition, Routing state) are reproduced from `audit_log` alone; the case's live status and
+  canonical/config state intentionally remain live references.
+- **Audit completeness:** proven self-sufficient by `test_reconstruct_without_operational_tables`
+  (cases/dispositions/rule_hits wiped; reconstruction from `audit_log` still succeeds).
+- **Single-event sufficiency confirmed:** the one `disposition_recorded` snapshot fully
+  reconstructs the analyst decision without recomputation. Per-stage audit events remain
+  deferred (Release Plan B11).
+
+### Traceability
+
+FR-20 (audit contents), FR-21 (signals captured, not consumed), NFR-3 (reconstructability);
+Addendum §3 (audit_log), §4 (Audit Writer invariants); Release Plan §M8 (single-event boundary);
+Impl Plan §M8 DoD (reconstructable from the log alone, integration-tested); Principle: Audit.
+
+### Verification
+
+`tests/unit/test_audit_reconstruct.py` (6): snapshot round-trip; the five objects reproduced ==
+what was shown; reconstructable with operational tables wiped; **no decision logic executed**;
+immune to template change; missing-disposition raises. Strengthened
+`test_workspace.py::test_disposition_audit_snapshot_is_complete` to the versioned snapshot shape
+(explanation text + grounding + routing asserted). Full suite: **243 passed**; Ruff +
+`ruff format --check` + mypy clean.
+
+### Assumptions / Deviations
+
+- The audit payload is a versioned JSON snapshot in the existing `audit_log.payload` column — no
+  relational DDL change (deliberate, to protect the verified SQLite/Compose run paths).
+- Per-stage audit events (CASE_ASSEMBLED / EXPLANATION_GENERATED) intentionally **not** emitted —
+  the Release Plan simplifies M8 to the single `disposition_recorded` event (B11 defers per-stage).
+
+### Implementation Concerns
+
+- None. (Single-event boundary and no-migration constraint were pre-approved.)
+
+### Backlog
+
+- BL-M8-01 (post-hackathon hardening): **database-level append-only enforcement** on `audit_log`
+  — `UPDATE`/`DELETE` revoked at the DB role level and/or a Postgres trigger — plus retention and
+  access control (NFR-7). Deferred to avoid a migration touching the verified run paths.
+- BL-M8-02: per-stage audit events (Release Plan B11, FR-20).
+- BL-M8-03: public reconstruction/governance API endpoint (integration concern; the audit model
+  already supports it without change).
