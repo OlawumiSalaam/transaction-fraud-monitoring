@@ -19,11 +19,15 @@ implementation concerns or documented design changes, not ad hoc revisions.
 
 ## Status
 
-Milestone **M0 — Project Bootstrap**: complete. This establishes structure,
-typed configuration, dependency management, environment strategy, structured
-logging, database migrations, the audit-writer scaffold, the CI skeleton, and
-development conventions. **No architectural business logic is implemented yet.**
-Layers are built one milestone at a time (M1–M10) per the Implementation Plan.
+**Build complete through M10 — Final Integration.** Milestones M0–M9 are
+implemented (canonical schema and ingestion, the gate-run scorer and leakage
+validation, the deterministic rule engine, evidence assembly, the recommendation
+policy, the templated explainer with the grounding gate, the analyst workspace and
+human-review workflow, audit completion and reconstructability, and the reproducible
+offline evaluation pipeline). M10 verifies the whole system integrates: both run
+paths, graceful degradation, packaging, the traceability matrix, and reproducibility
+from a clean clone. See `PROGRESS.md` for the per-milestone record and
+`docs/TRACEABILITY.md` for the requirement → implementation → test matrix.
 
 ## Architecture and package map
 
@@ -47,6 +51,24 @@ The reference architecture distinguishes six logical component kinds (§5.1). Th
 | `tfm/config` | Typed configuration | M0 |
 | `tfm/observability` | Structured logging | M0 |
 | `evaluation/` | Offline evaluation pipeline (deferred consumption) | M2/M6/M9 |
+
+## Repository structure
+
+Where things live, for someone opening the repository for the first time:
+
+| Directory | Purpose |
+|---|---|
+| `src/tfm/` | **Product implementation** — the online path and all four architectural layers (schema, data, ml, rules, assembly, recommendation, explanation, services, api, web, audit, persistence, config, observability). |
+| `evaluation/` | **Offline evaluation pipeline** — model metrics, leakage gate, calibration, grounding report, and `run_all.py`. Separate from the online path; nothing here feeds back. Artifacts under `evaluation/reports/`. |
+| `tests/` | **Tests** — `unit/` (per-layer), `integration/` (end-to-end online loop), `property/` (Hypothesis), `fixtures/`, shared `conftest.py`. |
+| `docs/` | **Documentation** — the controlled artifacts (Product Specification, Engineering Addendum, Hackathon Release Plan, Long-Term Implementation Plan), `CONVENTIONS.md`, and `TRACEABILITY.md`. |
+| `config/` | **Versioned governance configuration** — thresholds, rule parameters, queue policy, governance knobs (YAML). |
+| `migrations/` | **Alembic migrations** — the canonical schema DDL (`0001`) and `cases.score` nullable (`0002`). |
+| `models/` | **Committed model artifact** — the pinned, gate-run scorer (`scorer.joblib`). |
+| `scripts/` | **Operational scripts** — demo seeding (`seed_cases.py`) and evaluation packaging integrity (`package_evaluation.py`). |
+| `notebooks/` | **Exploratory notebooks** — data understanding (not part of the runtime). |
+| `data/` | **Local data workspace** — raw/prepared PaySim (gitignored; not committed). |
+| `CLAUDE.md` / `PROGRESS.md` | Engineering constitution / per-milestone implementation record. |
 
 ## Run the whole stack
 
@@ -109,6 +131,32 @@ Escalate on top** (risk-ordered) — CASH_OUT 985,210.50 and TRANSFER 441,423.00
 (both `account_draining` + `new_beneficiary_large`) — then a 250,000 TRANSFER hold
 and two small PAYMENT holds. An **empty queue means the seed did not run** against
 the same database, not an app failure.
+
+The LLM is disabled by default, so the workspace runs on the **templated
+explanation** pathway behind the deterministic grounding gate (graceful
+degradation, NFR-2) — the full analyst workflow is operational with no LLM.
+
+## Acceptance workflow and evaluation evidence
+
+The operational workflow is demonstrated using **curated synthetic transactions
+representative of PaySim scenarios**, intentionally selected to exercise the analyst
+workflow and ensure a consistent demo. The machine-learning scorer, leakage
+validation, and evaluation evidence were produced from the **full PaySim dataset**
+during M2 and are packaged as **immutable evaluation artifacts** under
+`evaluation/reports/`. The repository intentionally separates the offline evaluation
+pipeline from the online operational workflow.
+
+Regenerate and verify the evaluation evidence:
+
+```bash
+python -m evaluation.run_all          # writes evaluation_summary / grounding_report / manifest
+python scripts/package_evaluation.py  # verifies every manifested artifact exists (no hardcoded names)
+```
+
+The headline reports the scorer's metrics **alongside** the leakage-gate verdict
+(**FAIL** → the model is excluded under FR-4); every number is labelled *measured* or
+*modelled estimate*. See `evaluation/reports/evaluation_manifest.json` for the
+artifact index and `docs/TRACEABILITY.md` for the full requirement → test matrix.
 
 ## Local development
 
