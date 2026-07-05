@@ -48,20 +48,67 @@ The reference architecture distinguishes six logical component kinds (§5.1). Th
 | `tfm/observability` | Structured logging | M0 |
 | `evaluation/` | Offline evaluation pipeline (deferred consumption) | M2/M6/M9 |
 
-## Run the whole stack (reproducible)
+## Run the whole stack
+
+The workspace is a two-process app: a FastAPI online-path service and a Streamlit
+UI that talks to it over HTTP. Both run paths below launch the full analyst loop —
+triage queue → case → recommendation → grounded/templated explanation → evidence
+drill-down → disposition with mandatory rationale → routing → audit. The LLM is
+disabled by default, so the stack runs on the templated pathway (the
+graceful-degradation floor) until a provider is configured.
+
+### Path A — local, SQLite (no Docker) — primary, tested
+
+Runs entirely from the project virtualenv against a local SQLite file. Uses three
+env vars and a file database that lives **outside** the repo (nothing lands in
+`git status`).
+
+**Terminal 1 — migrate, seed, serve the API on `:8000`:**
+
+```powershell
+$env:DATABASE_URL = 'sqlite:///C:/Users/<you>/AppData/Local/Temp/tfm_demo.db'
+$env:CONFIG_DIR   = 'config'
+$env:LLM_ENABLED  = 'false'
+
+python -m alembic upgrade head          # applies 0001 + 0002 (cases.score nullable)
+python scripts/seed_cases.py            # populates the queue: 2 escalate + 3 hold (idempotent)
+python -m uvicorn tfm.api.app:app --app-dir src --host 127.0.0.1 --port 8000
+```
+
+**Terminal 2 — the Streamlit workspace on `:8501`:**
+
+```powershell
+$env:PYTHONPATH   = 'src'                    # so `tfm.web` imports when Streamlit runs the script
+$env:API_BASE_URL = 'http://localhost:8000'  # point the workspace at the API above
+
+python -m streamlit run src/tfm/web/app.py --server.port 8501
+```
+
+Open <http://localhost:8501>. The seed is idempotent — re-running it prints
+"already present — skipping". To reset, delete the SQLite file and re-run the
+migrate + seed steps.
+
+### Path B — Docker Compose (containerized)
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-This starts Postgres, applies migrations, serves the API on `:8000`, and runs the
-Streamlit workspace on `:8501`. The LLM is disabled by default, so the stack runs
-on the templated pathway (the graceful-degradation floor) until a provider is
-configured.
+This starts Postgres, and on the `api` service **applies migrations, seeds the demo
+queue (idempotent), then serves** the API on `:8000`; the `web` service runs the
+Streamlit workspace on `:8501` pointed at the API. `docker compose up` alone
+produces a populated queue — no manual seed step. A second `docker compose up`
+does not re-seed (the guard skips on the unique `cases.txn_id`).
 
 - API health: <http://localhost:8000/health>
 - Workspace: <http://localhost:8501>
+
+**A correct launch (either path):** the triage queue opens with **5 cases, the 2
+Escalate on top** (risk-ordered) — CASH_OUT 985,210.50 and TRANSFER 441,423.00
+(both `account_draining` + `new_beneficiary_large`) — then a 250,000 TRANSFER hold
+and two small PAYMENT holds. An **empty queue means the seed did not run** against
+the same database, not an app failure.
 
 ## Local development
 

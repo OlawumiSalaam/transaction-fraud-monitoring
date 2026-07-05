@@ -1,1 +1,9 @@
 """Evidence assembly (FR-2). Implemented in M4."""
+
+from tfm.assembly.assembler import (
+    NO_BASELINE_REASON,
+    SYNTHETIC_DATA_DISCLOSURE,
+    assemble_evidence,
+)
+
+__all__ = ["NO_BASELINE_REASON", "SYNTHETIC_DATA_DISCLOSURE", "assemble_evidence"]
