@@ -866,3 +866,90 @@ regenerates the three report artifacts. Full suite: **248 passed**; Ruff + `ruff
 
 - BL-M9-01: subgroup / false-positive-burden analysis (FR-25; Release Plan B12).
 - BL-M9-02: threshold-sensitivity sweep (deferred with FR-25).
+
+
+---
+
+## M10 — Final Integration
+
+Status: complete (pending review). The last build milestone: no new product functionality —
+integration, packaging, deployment verification, and hardening only. Proves the whole system
+(M0–M9) works together and is reproducible from a clean clone.
+
+### Completed
+
+- **End-to-end integration test** (`tests/integration/test_end_to_end.py`): the full online loop
+  over the real FastAPI app with the **LLM disabled** — queue → case → drill-down → disposition →
+  route → audit → **reconstruct from the log** — asserting the templated + grounded pathway
+  throughout (NFR-2, NFR-3).
+- **Packaging tied to the manifest** (`scripts/package_evaluation.py`): reads
+  `evaluation/reports/evaluation_manifest.json` (the M9 single source of truth) and verifies every
+  listed artifact exists — packaging never relies on hardcoded filenames.
+- **Final traceability matrix** (`docs/TRACEABILITY.md`): every FR/NFR/Principle → implementation
+  module → covering test, plus the documented deferrals with backlog references.
+- **Repository structure overview** (`README.md`): a top-level directory guide so a first-time
+  reader immediately finds product code, evaluation, docs, tests, and deployment assets.
+- **Acceptance-workflow clarification (IC-M10-01, Option B)** in README + TRACEABILITY: the live
+  demo uses curated synthetic PaySim-representative cases; the scorer, leakage validation, and
+  evaluation evidence were produced from the full PaySim dataset in M2 and packaged as immutable
+  M9 artifacts. The offline/online separation is architectural and unchanged. **No second
+  ingestion path and no committed PaySim sample** were added.
+
+### Verification evidence
+
+- **SQLite run path:** `alembic upgrade head` applied `0001` + `0002` (current = `a1b2c3d4e5f6`
+  head); `seed_cases.py` seeded 5 cases; full workflow driven over HTTP — queue populated (risk
+  order, escalate top), templated+grounded case, disposition → routed `escalation` → audit
+  written (snapshot_version 1) → case left the queue.
+- **Docker Compose run path (clean volume):** `db` healthy → `api` ran `0001`+`0002` migrations
+  and the first seed (5 cases) → `uvicorn` serving; a second `up` logged "Demo cases already
+  present — skipping seed (idempotent)"; Streamlit reachable (`:8501` HTTP 200), API health
+  (`:8000` HTTP 200); full workflow driven over the Postgres-backed API with identical results.
+- **Graceful degradation:** LLM disabled → explanation `pathway=templated`, `ai_generated=true`,
+  grounding `verified=true`; full analyst workflow operational.
+- **Evaluation:** `python -m evaluation.run_all` reproduces the three artifacts (deterministic —
+  only the timestamp changes); `scripts/package_evaluation.py` confirms all 5 manifested artifacts
+  present.
+- **Online-path latency (single measured number):** ~0.5–0.7 s per API call on the seeded demo
+  (SQLite and Compose/Postgres, LLM disabled), first-request cold-start inclusive — reported
+  honestly as an order-of-magnitude figure on the demo dataset, not a tuned production SLA.
+
+### Definition of Complete (CLAUDE.md)
+
+- [x] Every Required Release-Plan item implemented (M0–M9).
+- [x] Acceptance test passes — the full loop runs end to end on both paths (per IC-M10-01 Option B
+      wording: curated synthetic online demo; full-PaySim evidence in the M9 artifacts).
+- [x] No unresolved Implementation Concerns (IC-001 resolved; IC-M10-01 resolved via Option B).
+- [x] Every Simplified / Stubbed capability documented (LLM stub, FR-7, search, per-stage audit,
+      FR-25, DB-level append-only) with backlog references in TRACEABILITY.md.
+- [x] Reproducible from a clean clone — `docker compose up` on a clean volume migrates, seeds, and
+      serves a populated queue; the SQLite path is documented and verified.
+- [x] PROGRESS.md reflects implementation status; `docs/TRACEABILITY.md` is the requirement audit.
+
+### Traceability
+
+Impl Plan §M10 (integration, latency, hardening, deploy); CLAUDE.md Acceptance Test + Definition
+of Complete; NFR-2, NFR-3; Release Plan §M10.
+
+### Verification
+
+`tests/integration/test_end_to_end.py` (1, full loop, LLM disabled). Full suite: **249 passed**;
+Ruff + `ruff format --check` (src tests evaluation) + mypy clean. Both run paths verified with the
+evidence above; packaging integrity green.
+
+### Assumptions / Deviations
+
+- IC-M10-01 resolved with **Option B** (approved): no new ingestion path, no committed PaySim
+  sample; acceptance wording clarified instead.
+- Latency reported as a single measured order-of-magnitude number on the demo dataset (no
+  dedicated load harness — a production SLA measurement is a deployment concern).
+
+### Implementation Concerns
+
+- None open. IC-M10-01 resolved (Option B).
+
+### Backlog
+
+- BL-M10-01: production latency/load benchmarking under a real profile (deployment concern).
+- (Carried) BL-M8-01 DB-level append-only + retention; BL-M9-01/02 subgroup + threshold
+  sensitivity; BL-M7-02 search; BL-M8-02 per-stage audit events.
