@@ -13,7 +13,10 @@ WORKDIR /app
 RUN pip install --no-cache-dir uv
 
 # Dependency layer (cached until pyproject/lock change).
-COPY pyproject.toml uv.lock* ./
+WORKDIR /app
+
+COPY pyproject.toml uv.lock* README.md ./
+
 RUN uv pip install --system .
 
 # Application code and configuration.
@@ -21,6 +24,9 @@ COPY src ./src
 COPY config ./config
 COPY migrations ./migrations
 COPY alembic.ini ./alembic.ini
+# Demo-data seed (composed online path) — needed so `docker compose up` populates
+# the triage queue on a clean clone.
+COPY scripts ./scripts
 
 ENV PYTHONPATH=/app/src
 

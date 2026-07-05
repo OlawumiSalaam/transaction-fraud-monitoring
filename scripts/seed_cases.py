@@ -20,6 +20,7 @@ from datetime import timedelta
 from pathlib import Path
 
 import pandas as pd
+from sqlalchemy import select
 
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
@@ -30,6 +31,7 @@ from tfm.data.features import build_features, to_feature_vector  # noqa: E402
 from tfm.data.ingest import PAYSIM_BASE_EPOCH  # noqa: E402
 from tfm.persistence.db import create_db_engine, create_session_factory, session_scope  # noqa: E402
 from tfm.persistence.models import Account, Base, Counterparty  # noqa: E402
+from tfm.persistence.models import Case as CaseRow  # noqa: E402
 from tfm.persistence.models import Transaction as TxnRow  # noqa: E402
 from tfm.schema.entities import Counterparty as CounterpartyEntity  # noqa: E402
 from tfm.schema.entities import Transaction as TxnEntity  # noqa: E402
@@ -105,6 +107,13 @@ def main() -> int:
     features_df = build_features(pd.DataFrame(rows))
 
     with session_scope(factory) as session:
+        # Idempotency guard: `docker compose up` runs this on every start, and a
+        # re-run must not crash on the unique cases.txn_id constraint. If the demo
+        # set is already present, skip cleanly.
+        if session.scalar(select(CaseRow.case_id).where(CaseRow.txn_id == rows[0]["txn_id"])):
+            print("Demo cases already present — skipping seed (idempotent).")
+            return 0
+
         for _, frow in features_df.iterrows():
             is_merchant = str(frow["counterparty_id"]).startswith("M")
             session.merge(Account(account_id=str(frow["account_id"]), is_merchant=False))

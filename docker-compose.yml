@@ -33,9 +33,10 @@ services:
       LLM_ENABLED: "false"
     ports:
       - "8000:8000"
-    # Apply migrations, then serve. (Business routes are added per milestone.)
+    # Apply migrations, seed the demo queue (idempotent — safe to re-run), then serve.
     command: >
       sh -c "alembic upgrade head &&
+             python scripts/seed_cases.py &&
              uvicorn tfm.api.app:app --host 0.0.0.0 --port 8000"
 
   web:
