@@ -602,3 +602,97 @@ protocol satisfied. Full suite: **217 passed**; Ruff + `ruff format --check` + m
   `(EvidencePackage, Recommendation)` — re-running the explainer reproduces the text byte-for-byte;
   `groundable_fields_used` records the source elements. The end-to-end M4→M5→M6 example verifies
   the whole pipeline (grounding `verified=true`, zero violations).
+
+---
+
+## M7 — Analyst Workspace, Disposition & Routing
+
+Status: complete (pending review). The acceptance loop: composes M4/M5/M6 into a
+two-screen analyst product (triage queue → case → disposition → routing) over the
+FastAPI online path, consumed by Streamlit. No new fraud/model/explanation logic —
+M7 presents and orchestrates, and holds the human-in-the-loop boundary.
+
+### Completed
+
+- **Service layer** (`src/tfm/services/`): `case_service` (assemble+persist a queued
+  case; compose the case view; drill-down), `queue_service` (risk-ordered, re-sortable,
+  filterable by level/rule/min-amount), `disposition_service` (engagement floor,
+  rationale graduation, deviation, routing-as-state-change, **complete audit snapshot**),
+  and typed `errors` mapped to the uniform API error body (Addendum §2.5).
+- **API** (`src/tfm/api/`): `schemas.py` (the composed `CaseView` embedding the M4
+  `EvidencePackage`, M5 `Recommendation`, M6 `Explanation` verbatim; `QueueResponse`;
+  disposition request/response) and routes `GET /api/queue`, `GET /api/cases/{id}`,
+  `GET /api/cases/{id}/evidence/{element_id}`, `POST /api/cases/{id}/disposition`,
+  `GET /api/cases/{id}/audit`; uniform error handler.
+- **Workspace** (`src/tfm/web/`): `render.py` (pure, tested — analyst-language mapping:
+  "Risk Indicators Detected", "Decision Basis", the no-default disposition control) and
+  `app.py` (two-screen Streamlit: queue with filter/sort; case with the What happened →
+  Recommended Action → Why this case → Risk Indicators → Your decision hierarchy).
+- **Demo seed** (`scripts/seed_cases.py`): curated cases so the queue opens on strong,
+  legible fraud stories (account-draining escalates first), with honest thin holds present.
+- **Persistence**: `cases.score` made nullable (model + migration `0002`, batch mode for
+  SQLite/Postgres) — the FR-4 absent-score stored honestly as `NULL` / `score_band="none"`.
+- **Explanation copy** refined to an analyst-assistant tone (`explanation/templated.py`,
+  copy-only; still grounded by construction, gate still passes).
+
+### Analyst-experience decisions (M7 product lens)
+
+- **Recommended Action is the dominant element**; **Decision Basis** is supporting context.
+- **Graceful degradation reads as a governance feature**: within the Recommended Action area,
+  "Model scoring is excluded by the leakage gate — this case is assessed on verified rule
+  evidence." Legible and unmissable, not a top banner, not a blank.
+- **Human decision boundary**: disposition renders with **no default** (`index=None`, verified
+  on Streamlit 1.58) + sentinel + submit-disabled-until-chosen; the recommendation reads as an
+  input to weigh; deviation is frictionless and logged.
+- **Traceability**: every risk indicator expands to its raw signal (drill-down); the UI surfaces
+  the existing M4/M6 provenance, no explanation logic re-implemented.
+
+### Traceability
+
+FR-13, FR-14, FR-15, FR-16, FR-17, FR-18, FR-19, FR-20; NFR-4; §11.2; Addendum §2.3–2.5, §4;
+Principle: Human in the Loop, No Automated Blocking, Layer Separation, Audit.
+
+### Verification
+
+`tests/unit/test_workspace.py` (16) + `tests/unit/test_api_workflow.py` (6) — case composition &
+drill-down; queue ordering + filters; engagement floor; escalate/deviation rationale; routing +
+**no auto-execution**; `409` on re-disposition; **complete audit snapshot at write time** (all
+FR-20 fields asserted); render helpers incl. no-default disposition; full API loop via TestClient
+incl. the graceful-degradation `200`/templated contract. Demo seed smoke-run produces 2 escalate +
+3 hold cases, escalates first. Full suite: **237 passed**; Ruff + `ruff format --check` + mypy clean.
+
+### Assumptions / Deviations
+
+- Queue filtering is applied in memory (curated demo scale); JSON-column querying deferred if
+  scaled (BL-M7-01).
+- Search/filter kept to a minimal queue filter (FR-19) per the Release Plan; broader search is B9.
+- Explanation copy reworded (copy-only); the two M6 wording assertions updated accordingly.
+
+### Implementation Concerns
+
+- None. (`cases.score` nullable was pre-approved.)
+
+### Backlog
+
+- BL-M7-01: push queue filtering into indexed columns / SQL if the queue scales.
+- BL-M7-02: full-text search over transactions (Release Plan B9, FR-19); workspace polish (B10).
+- BL-M7-03: full audit-event coverage + reconstruct-from-log-alone integration test (M8).
+
+---
+
+## M7 — Implementation Summary
+
+- **Composed case, boundaries preserved**: `CaseView` embeds the M4 `EvidencePackage`, M5
+  `Recommendation`, and M6 `Explanation` verbatim as separate sections; the workspace renders them
+  as What happened → Recommended Action → Why this case → Risk Indicators → Your decision.
+- **Human decision boundary held**: disposition renders unselected (`index=None`, tested); the
+  recommendation is advisory input; routing is a state change only — nothing auto-executed.
+- **Graceful degradation as a feature**: the excluded scorer is surfaced within Recommended Action
+  as an intentional governance mode ("assessed on verified rule evidence"), never a blank or error.
+- **Evidence traceability**: each risk indicator drills down to its raw signal; provenance is
+  surfaced, not recomputed.
+- **Audit complete at write time**: the `disposition_recorded` record carries the full decision
+  snapshot (evidence shown, score status, recommendation, disposition + rationale + deviation,
+  explanation pathway, identity, timestamp) — asserted by a completeness test.
+- **Demo-ready**: `scripts/seed_cases.py` opens the queue on strong cases; the ~3-minute judge
+  walkthrough (queue → open → review → drill → decide → justify → route → audit) runs end to end.

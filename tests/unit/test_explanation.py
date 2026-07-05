@@ -179,31 +179,31 @@ def test_llm_enabled_stub_falls_back_to_templated() -> None:
 
 def test_state_scorer_excluded() -> None:
     _, explanation = _pipeline(rule_hits=[_drain_hit()])
-    assert "excluded under FR-4" in explanation.text
-    assert "no probability" not in explanation.text.lower() or True  # no score value invented
+    assert "excluded by the leakage gate" in explanation.text  # governance mode, no invented score
 
 
 def test_state_no_baseline() -> None:
     _, explanation = _pipeline(prior_transaction_count=0, rule_hits=[_drain_hit()])
-    assert "no behavioural baseline available" in explanation.text
+    assert "behavioural baseline" in explanation.text
+    assert "first observed transaction" in explanation.text
 
 
 def test_state_no_rules_fire() -> None:
     _, explanation = _pipeline(rule_hits=[])
-    assert "No deterministic fraud rules matched." in explanation.text
+    assert "No deterministic rule matched" in explanation.text
     assert "escalate" not in explanation.text  # honest: no rule -> hold, not escalate
 
 
 def test_state_one_rule_fires() -> None:
     _, explanation = _pipeline(rule_hits=[_drain_hit()])
-    assert "Rule account_draining fired" in explanation.text
+    assert "origin balance moved" in explanation.text  # the draining finding
     assert "escalate" in explanation.text
 
 
 def test_state_multiple_rules_fire() -> None:
     _, explanation = _pipeline(rule_hits=[_drain_hit(), _nbl_hit()])
-    assert "Rule account_draining fired" in explanation.text
-    assert "Rule new_beneficiary_large fired" in explanation.text
+    assert "origin balance moved" in explanation.text
+    assert "first-seen counterparty" in explanation.text
 
 
 def test_explainer_protocol_is_satisfied() -> None:
