@@ -122,7 +122,10 @@ class Case(Base):
         ForeignKey("model_versions.model_version_id"), nullable=True
     )
 
-    score: Mapped[float] = mapped_column(Numeric, nullable=False)
+    # Nullable: the operational scorer is excluded under FR-4, so there is no
+    # model score. score is NULL and score_band is "none" — the persistence
+    # counterpart of the M4/M5 honest degradation (IMP-011, M7). No sentinel.
+    score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     score_band: Mapped[str] = mapped_column(String, nullable=False)
     recommendation_action: Mapped[str] = mapped_column(String, nullable=False)
     recommendation_confidence: Mapped[str] = mapped_column(String, nullable=False)

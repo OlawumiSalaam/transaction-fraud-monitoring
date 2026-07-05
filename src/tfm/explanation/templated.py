@@ -41,26 +41,21 @@ class TemplatedExplainer:
             facts = by_id["txn_facts"]
             statements.append(
                 (
-                    f"A {_text(facts, 'type')} of {_amount(facts, 'amount'):,.2f} was made from "
-                    f"account {_text(facts, 'account_id')} to counterparty "
-                    f"{_text(facts, 'counterparty_id')} at {_text(facts, 'event_ts')}.",
+                    f"A {_text(facts, 'type')} of {_amount(facts, 'amount'):,.2f} moved from "
+                    f"account {_text(facts, 'account_id')} to {_text(facts, 'counterparty_id')} "
+                    f"on {_text(facts, 'event_ts')}.",
                     ("txn_facts",),
                 )
             )
 
-        # 2. Why flagged: the fired deterministic rules (requirement 2).
+        # 2. Why flagged: the fired deterministic rules, read as investigation findings.
         rule_elements = [e for e in package.elements if e.source == "rule"]
         if rule_elements:
             for element in rule_elements:
-                statements.append(
-                    (
-                        f"Rule {_text(element, 'rule_id')} fired: {_text(element, 'summary')}.",
-                        (element.element_id,),
-                    ),
-                )
+                statements.append((f"{_text(element, 'summary')}.", (element.element_id,)))
         else:
             statements.append(
-                ("No deterministic fraud rules matched.", ("interpretable_features",))
+                ("No deterministic rule matched this transaction.", ("interpretable_features",))
             )
 
         # 3. Abnormal for this account, or the explicit no-baseline state (requirement 3).
@@ -68,15 +63,19 @@ class TemplatedExplainer:
             baseline = by_id["account_baseline"]
             if "reason" in baseline.raw:
                 statements.append(
-                    (f"Account context: {_text(baseline, 'reason')}.", ("account_baseline",))
+                    (
+                        "This is the account's first observed transaction, so there is no "
+                        "behavioural baseline to compare against.",
+                        ("account_baseline",),
+                    )
                 )
             else:
                 prior = int(_amount(baseline, "prior_transaction_count"))
                 recent = int(_amount(baseline, "txn_count_24h"))
                 statements.append(
                     (
-                        f"The account has {prior} prior transactions "
-                        f"({recent} in the last 24 hours).",
+                        f"The account has {prior} prior transactions, "
+                        f"{recent} in the last 24 hours.",
                         ("account_baseline",),
                     ),
                 )
@@ -87,10 +86,9 @@ class TemplatedExplainer:
             if str(score.raw.get("status")) == "excluded":
                 statements.append(
                     (
-                        f"No operational model score is available; the model "
-                        f"({_text(score, 'model_version_id')}) was excluded under "
-                        f"{_text(score, 'excluded_under')} (leakage verdict: "
-                        f"{_text(score, 'leakage_verdict')}).",
+                        "No model score is available — model scoring is excluded by the "
+                        "leakage gate — so this assessment rests on the deterministic "
+                        "findings above.",
                         ("score_signal",),
                     )
                 )
@@ -103,11 +101,13 @@ class TemplatedExplainer:
         rec_sources = tuple(f"rule:{rid}" for rid in recommendation.basis.rule_ids) or (
             "score_signal",
         )
-        uncertain = " This assessment is uncertain." if recommendation.uncertainty_flag else ""
+        uncertain = (
+            " This assessment carries some uncertainty." if recommendation.uncertainty_flag else ""
+        )
         statements.append(
             (
                 f"Recommended action: {recommendation.action} "
-                f"(confidence: {recommendation.confidence}).{uncertain}",
+                f"({recommendation.confidence} confidence).{uncertain}",
                 rec_sources,
             )
         )
