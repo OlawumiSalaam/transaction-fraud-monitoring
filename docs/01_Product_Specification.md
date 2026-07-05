@@ -10,39 +10,39 @@ Product design record · 30 June 2026
 
 **Contents**
 
-1\. Introduction and Purpose 2
+1\. Introduction and Purpose 
 
-2\. Product Foundations 2
+2\. Product Foundations 
 
-3\. Architectural Principles 4
+3\. Architectural Principles 
 
-4\. Product Strategy 5
+4\. Product Strategy 
 
-5\. Reference Architecture 8
+5\. Reference Architecture 
 
-6\. Data Strategy 11
+6\. Data Strategy 
 
-7\. Measured vs. Modelled 13
+7\. Measured vs. Modelled 
 
-8\. Evaluation Strategy 14
+8\. Evaluation Strategy 
 
-9\. Simulator Leakage Gating Result 15
+9\. Simulator Leakage Gating Result 
 
-10\. Bias and Fairness Assessment 15
+10\. Bias and Fairness Assessment 
 
-11\. Decision Frameworks 16
+11\. Decision Frameworks 
 
-12\. Product Specification 16
+12\. Product Specification 
 
-13\. Traceability Summary 20
+13\. Traceability Summary 
 
-**Appendix A — Dataset Decision Record (DDR-01)** 22
+**Appendix A — Dataset Decision Record (DDR-01)** 
 
-> *Addendum A — Multi-dataset (hybrid) evaluation* 23
+> *Addendum A — Multi-dataset (hybrid) evaluation* 
 
-**Appendix B — Foundational Decision Gate** 25
+**Appendix B — Foundational Decision Gate** 
 
-**Appendix C — Consolidated Assumption Log** 26
+**Appendix C — Consolidated Assumption Log** 
 
 ## 1. Introduction and Purpose
 
@@ -52,7 +52,7 @@ The "why" is kept visible in the body — each significant decision states its r
 
 #### The product in one paragraph
 
-The product is a **case investigation workspace** that helps a frontline fraud analyst disposition flagged transactions faster, more consistently, and more defensibly. For each flagged transaction it produces a risk score, applies deterministic rules, assembles the evidence behind the alert, generates a grounded plain-language explanation with a recommended action, and records the analyst's decision — while keeping every consequential decision under human control. AI supports the decision; it never makes it.
+The product is a **case investigation workspace** that helps a frontline fraud analyst disposition flagged transactions faster, more consistently, and more defensibly. For each flagged transaction it produces a risk score, applies deterministic rules, assembles the evidence behind the alert, generates a grounded plain-language explanation with a recommended action, and records the analyst's decision while keeping every consequential decision under human control. AI supports the decision; it never makes it.
 
 #### How to read the traceability tags
 
@@ -92,7 +92,11 @@ Reconstructing context and producing a consistent, defensible decision under tim
 
 **Functional:** when an alert lands, help me understand what happened and why it was flagged without digging through systems; when I am unsure, give me the evidence to judge it; when I make a call, help me produce a record that holds up to review; when the queue is deep, help me stay fast and consistent.
 
-**Emotional:** reassure me I am neither missing real fraud nor wrongly flagging a legitimate customer; reduce the stress of a high-stakes call under time pressure. **Social:** let me justify my decisions to my manager, to auditors, and to regulators, and be seen as accurate and consistent. The emotional and social jobs are why transparency and auditability are load-bearing rather than decorative.
+**Emotional:** reassure me I am neither missing real fraud nor wrongly flagging a legitimate customer; reduce the stress of a high-stakes call under time pressure. 
+
+**Social:** let me justify my decisions to my manager, to auditors, and to regulators, and be seen as accurate and consistent. 
+
+The emotional and social jobs are why transparency and auditability are load-bearing rather than decorative.
 
 ### 2.7 Product Goals
 

@@ -1,177 +1,299 @@
-# Transaction Fraud Monitoring
+# AI Assisted Transaction Fraud Monitoring Platform
 
-A case investigation workspace that helps a frontline fraud analyst disposition
-flagged transactions faster, more consistently, and more defensibly. For each
-flagged transaction it produces a risk score, applies deterministic rules,
-assembles the evidence behind the alert, generates a grounded plain-language
-explanation with a recommended action, and records the analyst's decision, while
-keeping every consequential decision under human control. AI supports the
-decision; it never makes it.
+A governance first, human in the loop decision support system that helps fraud analysts investigate suspicious transactions through deterministic evidence, explainable AI recommendations, grounded explanations, complete auditability, and reproducible evaluation.
 
-## Controlled artifacts
+The platform demonstrates how trustworthy AI can support operational decision making without replacing human judgement. Every recommendation is explainable, every AI generated statement is grounded in evidence, and every analyst decision is recorded in a reconstructable audit trail.
 
-These are the authoritative engineering baseline. Changes are raised as
-implementation concerns or documented design changes, not ad hoc revisions.
+| Resource | Link |
+|----------|------|
+| 🚀 **Live Demo** | https://transaction-fraud-monitoring.streamlit.app/ |
+| 🔗 **API** | https://transaction-fraud-monitoring.onrender.com/docs |
 
-1. Product Specification (Version 1 Design Record)
-2. Implementation Plan (Phase 1)
-3. Engineering Addendum (Phase 1.1)
+| 📊 **Presentation** | *Add Google Slides link* |
 
-## Status
 
-**Build complete through M10 — Final Integration.** Milestones M0–M9 are
-implemented (canonical schema and ingestion, the gate-run scorer and leakage
-validation, the deterministic rule engine, evidence assembly, the recommendation
-policy, the templated explainer with the grounding gate, the analyst workspace and
-human-review workflow, audit completion and reconstructability, and the reproducible
-offline evaluation pipeline). M10 verifies the whole system integrates: both run
-paths, graceful degradation, packaging, the traceability matrix, and reproducibility
-from a clean clone. See `PROGRESS.md` for the per-milestone record and
-`docs/TRACEABILITY.md` for the requirement → implementation → test matrix.
 
-## Architecture and package map
+## Product Preview
 
-The reference architecture distinguishes six logical component kinds (§5.1). The
-`src/tfm/schema` package is the canonical evidence schema every layer imports.
+The screenshots below show the deployed analyst workspace used to triage suspicious transactions, investigate evidence, review AI assisted recommendations, and record auditable decisions.
 
-| Package | Role | Milestone |
-|---|---|---|
-| `tfm/schema` | Canonical Evidence Schema (the spine) | M1 |
-| `tfm/data` | Ingestion, point-in-time features, out-of-time split | M1 |
-| `tfm/ml` | Scorer, training, calibration, registry | M2 |
-| `tfm/rules` | Deterministic rule engine | M3 |
-| `tfm/assembly` | Evidence assembly | M4 |
-| `tfm/recommendation` | Deterministic recommendation policy | M5 |
-| `tfm/explanation` | LLM explainer, grounding gate, templated fallback | M6 |
-| `tfm/queue` | Triage queue ordering | M7 |
-| `tfm/web` | Streamlit analyst workspace | M7 |
-| `tfm/audit` | Append-only audit log | M0 scaffold / M8 |
-| `tfm/api` | FastAPI online-path service | per milestone |
-| `tfm/persistence` | Relational models + session management | M0 |
-| `tfm/config` | Typed configuration | M0 |
-| `tfm/observability` | Structured logging | M0 |
-| `evaluation/` | Offline evaluation pipeline (deferred consumption) | M2/M6/M9 |
+| Analyst Queue | Case Investigation |
+|---------------|--------------------|
+| ![](docs/images/triage-queue.png) | ![](docs/images/case-view.png) |
 
-## Repository structure
+| Recommendation & Explanation | Human Decision |
+|------------------------------|----------------|
+| ![](docs/images/recommendation_panel.png) | ![](docs/images/human_in_loop.png) |
 
-Where things live, for someone opening the repository for the first time:
 
-| Directory | Purpose |
-|---|---|
-| `src/tfm/` | **Product implementation** — the online path and all four architectural layers (schema, data, ml, rules, assembly, recommendation, explanation, services, api, web, audit, persistence, config, observability). |
-| `evaluation/` | **Offline evaluation pipeline** — model metrics, leakage gate, calibration, grounding report, and `run_all.py`. Separate from the online path; nothing here feeds back. Artifacts under `evaluation/reports/`. |
-| `tests/` | **Tests** — `unit/` (per-layer), `integration/` (end-to-end online loop), `property/` (Hypothesis), `fixtures/`, shared `conftest.py`. |
-| `docs/` | **Documentation** — the controlled artifacts (Product Specification, Engineering Addendum, Hackathon Release Plan, Long-Term Implementation Plan), `CONVENTIONS.md`, and `TRACEABILITY.md`. |
-| `config/` | **Versioned governance configuration** — thresholds, rule parameters, queue policy, governance knobs (YAML). |
-| `migrations/` | **Alembic migrations** — the canonical schema DDL (`0001`) and `cases.score` nullable (`0002`). |
-| `models/` | **Committed model artifact** — the pinned, gate-run scorer (`scorer.joblib`). |
-| `scripts/` | **Operational scripts** — demo seeding (`seed_cases.py`) and evaluation packaging integrity (`package_evaluation.py`). |
-| `notebooks/` | **Exploratory notebooks** — data understanding (not part of the runtime). |
-| `data/` | **Local data workspace** — raw/prepared PaySim (gitignored; not committed). |
-| `CLAUDE.md` / `PROGRESS.md` | Engineering constitution / per-milestone implementation record. |
+## Project Overview
 
-## Run the whole stack
+Fraud analysts work a queue of alerts under time pressure. For each one they must
+reconstruct context, weigh the signals, reach a defensible decision, and justify it
+to managers, auditors, and regulators. The bottleneck is rarely the absence of a
+score — it is the manual assembly of context and the consistency and defensibility
+of the decision.
 
-The workspace is a two-process app: a FastAPI online-path service and a Streamlit
-UI that talks to it over HTTP. Both run paths below launch the full analyst loop —
-triage queue → case → recommendation → grounded/templated explanation → evidence
-drill-down → disposition with mandatory rationale → routing → audit. The LLM is
-disabled by default, so the stack runs on the templated pathway (the
-graceful-degradation floor) until a provider is configured.
+This platform is **decision support for that workflow**. It compresses the time
+between an alert and a defensible disposition by assembling the evidence, applying
+transparent rules, recommending an action, and explaining the risk in plain
+language — while leaving the decision itself with the analyst. It is not an
+autonomous fraud-blocking system, and it makes no automated operational decisions.
 
-### Path A — local, SQLite (no Docker) — primary, tested
+The central engineering problem is not prediction accuracy. It is building a system
+whose outputs a professional can trust, inspect, override, and defend. That
+requirement drove every architectural choice: layer separation, evidence grounding,
+mandatory human disposition, and end-to-end auditability.
 
-Runs entirely from the project virtualenv against a local SQLite file. Uses three
-env vars and a file database that lives **outside** the repo (nothing lands in
-`git status`).
+## Why this project
 
-**Terminal 1 — migrate, seed, serve the API on `:8000`:**
+**Fraud monitoring is a decision-support problem, not a prediction problem.** A
+model that emits a probability tells an analyst that something may be wrong, not
+why, and not what to do about it. In a financial-crime context, an unexplained
+score creates more work,  the analyst still has to assemble the context
+and defend the call.
 
-```powershell
-$env:DATABASE_URL = 'sqlite:///C:/Users/<you>/AppData/Local/Temp/tfm_demo.db'
-$env:CONFIG_DIR   = 'config'
-$env:LLM_ENABLED  = 'false'
+**Prediction alone is insufficient** because the consequential act — clearing,
+holding, or escalating a customer's transaction carries accountability that cannot
+be delegated to a black box. A wrong automated block harms a legitimate customer; a
+wrong automated clear misses real fraud. Both demand a human who can see the basis
+for the decision and take responsibility for it.
 
-python -m alembic upgrade head          # applies 0001 + 0002 (cases.score nullable)
-python scripts/seed_cases.py            # populates the queue: 2 escalate + 3 hold (idempotent)
+Once the human is correctly placed at the centre, **governance becomes the
+architecture**. The hard problems are no longer "what is the AUC" but: How do we
+guarantee an explanation never states something the evidence does not support? How
+do we keep the model's output, the rules' output, the AI's narrative, and the
+human's decision visibly distinct? How do we reconstruct exactly what an analyst saw
+and decided, months later, from the record alone? Those questions shaped the system.
+
+---
+
+## Product Workflow
+
+The platform supports the complete fraud analyst workflow:
+
+1. Suspicious transaction enters the triage queue.
+2. Analyst opens a case for investigation.
+3. The system presents deterministic evidence and an AI-assisted recommendation.
+4. Every explanation is grounded in recorded evidence.
+5. The analyst reviews the evidence and records a disposition.
+6. The decision is written to an append-only audit log.
+7. Historical decisions can be reconstructed exactly as originally presented.
+
+
+## Technology Stack
+
+| Layer | Technology |
+|--------|------------|
+| Frontend | Streamlit |
+| Backend | FastAPI |
+| Database | PostgreSQL, SQLite |
+| Machine Learning | XGBoost |
+| AI | OpenAI-Llama LLM (optional, grounded) |
+| ORM | SQLAlchemy |
+| Testing | pytest |
+| Deployment | Docker, Render, Streamlit Community Cloud |
+
+
+
+
+
+---
+
+
+## Key Features
+
+- **Analyst triage queue** — a prioritised, re-sortable, filterable work queue.
+  Ordering is a configurable operational policy (default: risk), visible and
+  re-sortable — not a hidden property of a model score.
+- **Deterministic fraud rules** — an auditable if-then rule engine (account
+  draining, velocity, large transfer to a new beneficiary) whose parameters are
+  versioned configuration, never literals in code. Each firing produces a `RuleHit`
+  that carries the exact fields and thresholds that made it fire.
+- **Recommendation policy** — a deterministic, **advisory** policy that maps rule
+  evidence and score status to `clear` / `hold` / `escalate`. It is separate from
+  the model and from the human; it recommends, it does not decide.
+- **Grounded explanations** — a plain-language explanation of each case, produced by
+  a templated explainer and verified by a deterministic **grounding gate**: every
+  number and entity in the narrative must trace to a known evidence element, or the
+  explanation is not shown.
+- **Evidence inspection** — each risk indicator on the case screen expands to the
+  raw underlying signal (e.g. fraction of balance moved, first-seen counterparty),
+  so an analyst can drill from summary to source.
+- **Human analyst workflow** — the disposition control renders with no default
+  selection, every disposition requires a structured reason code (no one-click
+  clear), and escalations or deviations require a fuller rationale. The human is the
+  sole decider.
+- **Audit logging** — an append-only audit log (no update, no delete). Each
+  disposition writes one complete decision record.
+- **Decision reconstructability** — a decision can be rebuilt from the audit log
+  alone, by deserializing a typed, versioned snapshot — with no recomputation and no
+  dependence on current configuration or business logic.
+- **Offline evaluation** — a reproducible, one-command evaluation pipeline that
+  consolidates model metrics, the leakage-gate verdict, and grounding integrity,
+  labelling every number as *measured* or *modelled estimate*.
+- **Cloud deployment** — the full stack runs from a single `docker compose up`
+  (PostgreSQL, migrations, idempotent demo seeding, API, and workspace) or as local
+  processes against SQLite.
+
+---
+
+## System Architecture
+
+The system separates an **online operational path** (synchronous request/response,
+serving one case to a disposition) from an **offline evaluation path** (reproducible,
+run separately). The append-only audit log is the only bridge between them: written
+by the online path, read by the offline path. Version 1 captures learning signals
+but does not consume them — the feedback loop is deferred for version 2.
+
+!| 🏗 **System Architecture** | ![System Architecture](docs/images/reference-architecture.png) |
+
+The online path composes a strict sequence of single-responsibility layers. No layer
+absorbs another's responsibility:
+
+
+---
+
+
+
+## Installation
+
+Requires **Python 3.11+**. The project uses [`uv`](https://github.com/astral-sh/uv)
+for reproducible installs against the committed lockfile.
+
+```bash
+# clone
+git clone https://github.com/OlawumiSalaam/transaction-fraud-monitoring
+cd transaction-fraud-monitor
+
+# install (runtime + dev tooling)
+uv pip install --system ".[dev]"     # or: uv sync
+
+# quality gates
+ruff check src tests evaluation
+ruff format --check src tests evaluation
+mypy src/tfm evaluation
+
+# tests
+pytest
+```
+
+
+
+
+
+## Dataset
+
+**Why PaySim.** The platform is built and evaluated on
+[PaySim](https://www.kaggle.com/datasets/ealaxi/paysim1), a synthetic mobile-money
+transaction simulator. Synthetic data satisfies the "no confidential or identifiable
+customer information" constraint by construction — no real PII, no re-identification
+risk — which makes an openly reviewable fraud project possible at all.
+
+
+## Deployment
+
+Both supported run paths launch the same analyst loop: triage queue → case →
+recommendation → grounded/templated explanation → evidence drill-down → disposition
+with mandatory rationale → routing → audit. The LLM is disabled by default, so the
+stack runs on the templated (grounded) explanation floor with no external provider.
+
+### Local (SQLite, no Docker)
+
+Two processes against a local SQLite file. **Terminal 1** — migrate, seed, and serve
+the API on `:8000`:
+
+```bash
+export DATABASE_URL="sqlite:///./tfm_demo.db"
+export CONFIG_DIR=config
+export LLM_ENABLED=false
+
+python -m alembic upgrade head          # apply schema migrations
+python scripts/seed_cases.py            # populate the queue (idempotent)
 python -m uvicorn tfm.api.app:app --app-dir src --host 127.0.0.1 --port 8000
 ```
 
-**Terminal 2 — the Streamlit workspace on `:8501`:**
+**Terminal 2** — the Streamlit workspace on `:8501`, pointed at the API:
 
-```powershell
-$env:PYTHONPATH   = 'src'                    # so `tfm.web` imports when Streamlit runs the script
-$env:API_BASE_URL = 'http://localhost:8000'  # point the workspace at the API above
+```bash
+export PYTHONPATH=src
+export API_BASE_URL=http://localhost:8000
 
 python -m streamlit run src/tfm/web/app.py --server.port 8501
 ```
 
-Open <http://localhost:8501>. The seed is idempotent — re-running it prints
-"already present — skipping". To reset, delete the SQLite file and re-run the
-migrate + seed steps.
+Open <http://localhost:8501>.
 
-### Path B — Docker Compose (containerized)
+### Docker Compose (PostgreSQL)
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
-This starts Postgres, and on the `api` service **applies migrations, seeds the demo
-queue (idempotent), then serves** the API on `:8000`; the `web` service runs the
-Streamlit workspace on `:8501` pointed at the API. `docker compose up` alone
-produces a populated queue — no manual seed step. A second `docker compose up`
-does not re-seed (the guard skips on the unique `cases.txn_id`).
+The `db` service (PostgreSQL) comes up healthy; the `api` service **applies Alembic
+migrations, runs the idempotent demo seed, then serves** on `:8000`; the `web`
+service runs Streamlit on `:8501`. `docker compose up` alone produces a populated
+queue — no manual seed step, and a second `up` skips re-seeding.
 
-- API health: <http://localhost:8000/health>
 - Workspace: <http://localhost:8501>
+- API health: <http://localhost:8000/health>
 
-**A correct launch (either path):** the triage queue opens with **5 cases, the 2
-Escalate on top** (risk-ordered) — CASH_OUT 985,210.50 and TRANSFER 441,423.00
-(both `account_draining` + `new_beneficiary_large`) — then a 250,000 TRANSFER hold
-and two small PAYMENT holds. An **empty queue means the seed did not run** against
-the same database, not an app failure.
+**A correct launch (either path):** the queue opens with 5 cases, the 2 escalate
+cases on top (account draining + large transfer to a new beneficiary), then three
+holds. An empty queue means the seed did not run against that database.
 
-The LLM is disabled by default, so the workspace runs on the **templated
-explanation** pathway behind the deterministic grounding gate (graceful
-degradation, NFR-2) — the full analyst workflow is operational with no LLM.
 
-## Acceptance workflow and evaluation evidence
+---
 
-The operational workflow is demonstrated using **curated synthetic transactions
-representative of PaySim scenarios**, intentionally selected to exercise the analyst
-workflow and ensure a consistent demo. The machine-learning scorer, leakage
-validation, and evaluation evidence were produced from the **full PaySim dataset**
-during M2 and are packaged as **immutable evaluation artifacts** under
-`evaluation/reports/`. The repository intentionally separates the offline evaluation
-pipeline from the online operational workflow.
+## 13. Limitations
 
-Regenerate and verify the evaluation evidence:
 
-```bash
-python -m evaluation.run_all          # writes evaluation_summary / grounding_report / manifest
-python scripts/package_evaluation.py  # verifies every manifested artifact exists (no hardcoded names)
-```
 
-The headline reports the scorer's metrics **alongside** the leakage-gate verdict
-(**FAIL** → the model is excluded under FR-4); every number is labelled *measured* or
-*modelled estimate*. See `evaluation/reports/evaluation_manifest.json` for the
-artifact index and `docs/TRACEABILITY.md` for the full requirement → test matrix.
+- **PaySim simulator leakage.** The trained scorer's apparent performance depends on
+  simulator balance artefacts and fails the leakage gate; it is therefore excluded
+  from operational use. The system runs on deterministic rule evidence instead.
+- **Limited behavioural history.** PaySim origin accounts are largely unique, so
+  there is little per-account history to establish a behavioural baseline. Rules and
+  features that depend on such history are implemented but under-exercised by this
+  dataset.
+- **Synthetic evaluation.** All reported model performance is measured on synthetic
+  distributions and is a modelled estimate of real-world performance, not a
+  production result. The model has not been exposed to real fraud diversity.
+- **Deterministic rule coverage.** The V1 rule set is intentionally small and
+  auditable (account draining, velocity, large transfer to a new beneficiary). A
+  mule/pass-through rule is implemented behind the engine but not enabled, pending
+  the peer evidence it requires; dormant-account reactivation is deliberately out of
+  scope with no proxy.
+- **No production hardening in scope.** Authentication, authorization, retention, and
+  database-level append-only enforcement on the audit store are real-deployment
+  obligations, documented and deferred (the application layer enforces append-only by
+  construction today).
 
-## Local development
+---
 
-```bash
-uv pip install --system ".[dev]"    # or: uv sync
-ruff check src tests && ruff format --check src tests
-mypy
-pytest --cov=tfm --cov-report=term-missing
-```
+##  Future Work
 
-Migrations against a local database:
 
-```bash
-export DATABASE_URL=postgresql+psycopg://tfm:tfm@localhost:5432/tfm
-alembic upgrade head
-```
+- **Richer behavioural datasets** — a real or higher-fidelity behavioural simulator
+  to exercise velocity, counterparty, and mule patterns the current dataset cannot.
+- **Online feature store** — persistent, point-in-time behavioural profiles rather
+  than per-request feature computation.
+- **Streaming ingestion** — a real-time transaction ingestion path alongside the
+  current batch/seed path.
+- **Adaptive analyst feedback** — consuming the captured (but currently not consumed)
+  audit signals to close the learning loop between the offline and online paths.
+- **Additional rule families** — activating the mule/pass-through rule and adding
+  further auditable typologies.
+- **Production authentication & authorization** — real identity, session management,
+  and access control on the audit store, with retention policy.
+- **Observability** — operational metrics, tracing, and monitoring for the online
+  path.
+- **Continuous evaluation** — scheduled re-evaluation, calibration drift detection,
+  and subgroup / false-positive-burden analysis as standing components.
 
-See `docs/CONVENTIONS.md` for the development conventions and Definition of Done.
+---
+
+## License
+
+_
