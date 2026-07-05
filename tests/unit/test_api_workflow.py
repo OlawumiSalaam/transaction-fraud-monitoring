@@ -180,7 +180,7 @@ def test_full_disposition_and_audit(client_and_case: tuple[TestClient, str]) -> 
     assert len(audit) == 1
     assert audit[0]["event_type"] == "disposition_recorded"
     assert audit[0]["payload"]["analyst_id"] == "judge-demo"
-    assert "evidence_shown" in audit[0]["payload"]
+    assert "evidence" in audit[0]["payload"]  # full EvidencePackage snapshot (M8)
 
     # Case has left the open queue.
     assert len(client.get("/api/queue").json()["items"]) == 0

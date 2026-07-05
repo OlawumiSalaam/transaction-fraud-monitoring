@@ -1,0 +1,85 @@
+{
+  "generated_at": "2026-07-05T08:57:47.679279+00:00",
+  "dataset": "PaySim (synthetic)",
+  "model_version_id": "tfm-scorer-20260704053632",
+  "scorer_eligible": false,
+  "leakage_verdict": "fail",
+  "headline": {
+    "status": "SCORER INELIGIBLE \u2014 leakage gate verdict: FAIL (FR-4 / FR-26). The metrics below are a modelled estimate on synthetic PaySim and do NOT qualify this model for operational scoring; the operational path runs with the scorer excluded.",
+    "leakage_verdict": "fail",
+    "scorer_eligible": false,
+    "model_version_id": "tfm-scorer-20260704053632",
+    "metrics": {
+      "pr_auc": {
+        "value": 0.3208540251741047,
+        "label": "modelled_estimate",
+        "note": "measured on synthetic OOT; modelled estimate of real-world; model INELIGIBLE (leakage FAIL)"
+      },
+      "precision": {
+        "value": 0.975609756097561,
+        "label": "modelled_estimate",
+        "note": "measured on synthetic OOT; modelled estimate of real-world; model INELIGIBLE (leakage FAIL)"
+      },
+      "recall": {
+        "value": 0.1791713325867861,
+        "label": "modelled_estimate",
+        "note": "measured on synthetic OOT; modelled estimate of real-world; model INELIGIBLE (leakage FAIL)"
+      },
+      "roc_auc": {
+        "value": 0.9174461524864441,
+        "label": "modelled_estimate",
+        "note": "measured on synthetic OOT; modelled estimate of real-world; model INELIGIBLE (leakage FAIL)"
+      },
+      "brier": {
+        "value": 0.008552993651225258,
+        "label": "modelled_estimate",
+        "note": "measured on synthetic OOT; modelled estimate of real-world; model INELIGIBLE (leakage FAIL)"
+      }
+    }
+  },
+  "leakage_gate": {
+    "verdict": "fail",
+    "rationale": "The model appears to ride balance-consistency artefacts: behavioural performance collapses without the balance artefacts (remaining PR-AUC 0.3369 < default 0.50). Balance-artifact features hold 0.0% of total permutation importance. Under FR-4/FR-26 the model is ineligible regardless of its headline metrics; remediation (feature curation / model change) is required before it can advance. Verdict: FAIL."
+  },
+  "calibration": {
+    "method": "isotonic",
+    "brier": {
+      "value": 0.008552993651225258,
+      "label": "modelled_estimate",
+      "note": "measured on synthetic OOT; modelled estimate of real-world; model INELIGIBLE (leakage FAIL)"
+    }
+  },
+  "grounding": {
+    "sample": "synthetic PaySim-shaped cases (held-out; not the operational store)",
+    "n_cases": 6,
+    "llm_enabled": false,
+    "ungrounded_statement_rate": {
+      "value": 0.0,
+      "label": "measured",
+      "note": "fraction of explanations with any ungrounded number/entity; \u22480 on the templated floor"
+    },
+    "total_ungrounded_tokens": {
+      "value": 0,
+      "label": "measured",
+      "note": null
+    },
+    "templated_fallback_rate": {
+      "value": 1.0,
+      "label": "measured",
+      "note": "share on the templated pathway; 1.0 with the LLM disabled (NFR-2 floor)"
+    },
+    "pathway_counts": {
+      "templated": 6
+    }
+  },
+  "provenance": {
+    "model_metrics": "models/scorer.joblib manifest (M2 artifact, read verbatim; not regenerated)",
+    "leakage_verdict": "evaluation/reports/leakage_verdict.json (M2 artifact, read verbatim)",
+    "grounding": "computed by evaluation.grounding_report on a synthetic held-out sample (M9)"
+  },
+  "disclosures": [
+    "Trained and evaluated on synthetic PaySim data; reported model metrics are a modelled estimate of real-world performance, not a production result.",
+    "The operational scorer is excluded under FR-4 (leakage gate: FAIL); the product runs on deterministic rule evidence with the scorer disabled.",
+    "Generated text is templated (LLM disabled by default, NFR-2); grounding measured on synthetic cases."
+  ]
+}

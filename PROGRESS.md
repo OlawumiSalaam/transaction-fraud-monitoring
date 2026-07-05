@@ -696,3 +696,173 @@ incl. the graceful-degradation `200`/templated contract. Demo seed smoke-run pro
   explanation pathway, identity, timestamp) — asserted by a completeness test.
 - **Demo-ready**: `scripts/seed_cases.py` opens the queue on strong cases; the ~3-minute judge
   walkthrough (queue → open → review → drill → decide → justify → route → audit) runs end to end.
+
+
+---
+
+## M8 — Audit Completion & Reconstructability
+
+Status: complete (pending review). Cross-cutting; completed after M7. Guarantees that
+every analyst decision is **fully reconstructable from the audit log alone** (NFR-3),
+through the single `disposition_recorded` event the Release Plan mandates. No new fraud
+logic, no new UI, no public reconstruction endpoint (deferred as an integration concern).
+
+### Completed
+
+- **Typed, versioned decision snapshot** (`src/tfm/audit/snapshot.py`): `DecisionSnapshot`
+  (+ `DispositionSnapshot`, `RoutingSnapshot`, `Provenance`) with `SNAPSHOT_VERSION`, and
+  `build_decision_snapshot(...)`. Embeds the **rendered** M4/M5/M6 artifacts
+  (`EvidencePackage`, `Recommendation`, `Explanation` incl. text + grounding), the
+  disposition, the routing state as-decided, provenance stamps, identity, and timestamp.
+- **Reconstruction service** (`src/tfm/audit/reconstruct.py`): `reconstruct_decision(session,
+  case_id) -> ReconstructedDecision` — **pure deserialization** of the single
+  `disposition_recorded` payload; reads only `audit_log`; invokes no rule engine,
+  recommendation policy, explanation, grounding, or configuration. `DecisionNotReconstructable`
+  when no disposition exists.
+- **Disposition service completion** (`services/disposition_service.py`): writes the typed
+  `DecisionSnapshot` (closing the two M7 gaps — the explanation **text + grounding** and the
+  **routing outcome** are now in the record), composing the exact case view at write time so
+  the frozen record equals what the analyst saw.
+- **Append-only** stays enforced at the service layer (insert-only `AuditWriter`); **no
+  migration and no DB trigger added** in M8, preserving the verified SQLite and Docker Compose
+  run paths. DB-level append-only enforcement is a named post-hackathon hardening item (below).
+
+### Architectural confirmations
+
+- **Deterministic reconstruction:** reconstruction is deserialization, never recomputation —
+  proven by `test_reconstruct_invokes_no_decision_logic` (every decision component patched to
+  raise; reconstruction still succeeds) and `test_reconstruct_is_immune_to_template_change`
+  (explainer rewritten; reconstruction returns the original stored text).
+- **Scope of reconstruction:** M8 reconstructs the **historical decision that was presented and
+  recorded** — the evidence shown, the recommendation and its basis, the disposition and
+  rationale, and the decision-driving parameters — **not the entire runtime environment**.
+  Current case state and non-decision operational configuration intentionally remain live
+  references, because they are not part of the historical analyst decision.
+- **Snapshot boundaries:** immutable (embedded) = EvidencePackage (incl. the **decision-driving
+  rule parameters** frozen in each fired rule's evidence — e.g. `min_fraction_of_balance: 0.9`,
+  `amount_threshold: 200000.0`), Recommendation (the outcome those parameters produced — action,
+  score_band, basis rule_ids, uncertainty), Explanation, Disposition, Routing-as-decided,
+  provenance, identity, timestamps. Live references (never frozen) = the case's **current**
+  status, the canonical transaction/account rows, and **non-decision** operational config/model
+  files.
+- **Decision-driving config is frozen (confirmed):** the thresholds/rule parameters that produced
+  this recommendation are recorded values inside the snapshot's evidence (`definitions.py` writes
+  each rule's parameter into `RuleHit.evidence`; the assembler carries it verbatim), and the
+  recommendation outcome is frozen. Reconstructing a past decision after a `rules.yaml` /
+  `thresholds.yaml` change therefore shows the values in effect **then, not now** — never
+  re-reading live config. Under FR-4 the operational scorer is excluded, so score-band thresholds
+  are moot (`score_band = none`).
+- **Replay guarantee:** the five objects (EvidencePackage, Recommendation, Explanation,
+  Disposition, Routing state) are reproduced from `audit_log` alone; the case's live status and
+  canonical/config state intentionally remain live references.
+- **Audit completeness:** proven self-sufficient by `test_reconstruct_without_operational_tables`
+  (cases/dispositions/rule_hits wiped; reconstruction from `audit_log` still succeeds).
+- **Single-event sufficiency confirmed:** the one `disposition_recorded` snapshot fully
+  reconstructs the analyst decision without recomputation. Per-stage audit events remain
+  deferred (Release Plan B11).
+
+### Traceability
+
+FR-20 (audit contents), FR-21 (signals captured, not consumed), NFR-3 (reconstructability);
+Addendum §3 (audit_log), §4 (Audit Writer invariants); Release Plan §M8 (single-event boundary);
+Impl Plan §M8 DoD (reconstructable from the log alone, integration-tested); Principle: Audit.
+
+### Verification
+
+`tests/unit/test_audit_reconstruct.py` (6): snapshot round-trip; the five objects reproduced ==
+what was shown; reconstructable with operational tables wiped; **no decision logic executed**;
+immune to template change; missing-disposition raises. Strengthened
+`test_workspace.py::test_disposition_audit_snapshot_is_complete` to the versioned snapshot shape
+(explanation text + grounding + routing asserted). Full suite: **243 passed**; Ruff +
+`ruff format --check` + mypy clean.
+
+### Assumptions / Deviations
+
+- The audit payload is a versioned JSON snapshot in the existing `audit_log.payload` column — no
+  relational DDL change (deliberate, to protect the verified SQLite/Compose run paths).
+- Per-stage audit events (CASE_ASSEMBLED / EXPLANATION_GENERATED) intentionally **not** emitted —
+  the Release Plan simplifies M8 to the single `disposition_recorded` event (B11 defers per-stage).
+
+### Implementation Concerns
+
+- None. (Single-event boundary and no-migration constraint were pre-approved.)
+
+### Backlog
+
+- BL-M8-01 (post-hackathon hardening): **database-level append-only enforcement** on `audit_log`
+  — `UPDATE`/`DELETE` revoked at the DB role level and/or a Postgres trigger — plus retention and
+  access control (NFR-7). Deferred to avoid a migration touching the verified run paths.
+- BL-M8-02: per-stage audit events (Release Plan B11, FR-20).
+- BL-M8-03: public reconstruction/governance API endpoint (integration concern; the audit model
+  already supports it without change).
+
+
+---
+
+## M9 — Offline Evaluation Pipeline (reproducible)
+
+Status: complete (pending review). Consolidation milestone: one command produces the
+submission's evaluation evidence from the committed M2 artifacts plus a freshly-measured
+grounding report, every number labelled measured or modelled-estimate, with the leakage
+verdict surfaced alongside the headline metrics. No new model/rule/UI logic; the offline
+path stays fully separate from the online path (nothing feeds back).
+
+### Completed
+
+- **Measured/modelled labelling** (`evaluation/labels.py`): `Label`, `LabelledValue`, and
+  `measured(...)` / `modelled(...)` so no number reads as an unqualified performance claim (§7).
+- **Grounding-integrity report** (`evaluation/grounding_report.py`): runs the deterministic
+  grounding gate over a held-out synthetic sample of assembled explanations; measures the
+  ungrounded-statement rate (**0.0** on the templated floor) and the templated-pathway rate
+  (FR-11, FR-24, §8.2). Genuinely measured — the evidence set is known on synthetic cases.
+- **One-command consolidator** (`evaluation/run_all.py` → `python -m evaluation.run_all`, with
+  `PYTHONPATH=src` locally; the image sets it): reads the committed M2 evidence **verbatim**
+  (model metrics + eligibility + model version from `models/scorer.joblib`; full leakage verdict
+  from `evaluation/reports/leakage_verdict.json`) and emits three artifacts under
+  `evaluation/reports/`:
+  - `evaluation_summary.json` — headline leads with **SCORER INELIGIBLE / leakage FAIL** and the
+    eligibility flag, then the metrics inline (each labelled `modelled_estimate` and noting
+    ineligibility); plus the full leakage rationale, calibration, grounding, provenance, and
+    synthetic-data disclosures.
+  - `grounding_report.json` — the measured grounding integrity.
+  - `evaluation_manifest.json` — single source of truth for M10 packaging (artifacts, model
+    version, dataset, leakage verdict, timestamp) with no hardcoded filenames.
+
+### Confirmations (checkable)
+
+- **Verbatim sourcing:** the five headline metrics in `evaluation_summary.json` are identical to
+  the committed scorer manifest (`pr_auc 0.3208540251741047`, `precision 0.975609756097561`,
+  `recall 0.1791713325867861`, `roc_auc 0.9174461524864441`, `brier 0.008552993651225258`) —
+  read, not regenerated (asserted by `test_summary_metrics_are_committed_m2_values_verbatim`).
+- **Honest framing:** the leakage FAIL and `scorer_eligible=false` lead the headline block inline
+  with the metrics, so the numbers cannot be read as a performance claim.
+
+### Traceability
+
+FR-22 (metrics), FR-23 (calibration), FR-24 (grounding-rate ≈ 0), FR-26 (leakage verdict); §7,
+§8.1–8.2; Release Plan §M9; Principle: honest reporting (measured vs modelled estimate).
+
+### Verification
+
+`tests/unit/test_evaluation.py` (5): grounding ≈0 ungrounded on the templated floor; **metrics
+verbatim from the committed M2 artifact**; leakage verdict surfaced alongside the metrics; every
+reported number labelled; manifest is a single source of truth. `python -m evaluation.run_all`
+regenerates the three report artifacts. Full suite: **248 passed**; Ruff + `ruff format --check`
++ mypy clean (evaluation type-checked).
+
+### Assumptions / Deviations
+
+- Model metrics/eligibility/leakage verdict are **consumed from the committed M2 artifacts,
+  unchanged** — no retrain/recalibrate/regenerate (per approval).
+- **FR-25 subgroup / false-positive-burden and threshold sensitivity are deferred** per the
+  Release Plan (B12); not in M9. (Impl Plan divergence resolved by precedence.)
+- No evaluation notebook (script-driven only, per approval).
+
+### Implementation Concerns
+
+- None. (Scope boundaries — verbatim consumption, FR-25 deferral, script-only — were pre-approved.)
+
+### Backlog
+
+- BL-M9-01: subgroup / false-positive-burden analysis (FR-25; Release Plan B12).
+- BL-M9-02: threshold-sensitivity sweep (deferred with FR-25).
