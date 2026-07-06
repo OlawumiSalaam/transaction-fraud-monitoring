@@ -1,11 +1,9 @@
-"""Case service: assemble+persist cases and serve the composed case view (M7).
+"""Case service: assemble+persist cases and serve the composed case view.
 
-Orchestrates the online path — it composes M1–M6 outputs and persists the case;
-it adds no fraud, model, or explanation logic. The case view embeds the M4/M5/M6
+Orchestrates the online path — it composes outputs and persists the case;
+it adds no fraud, model, or explanation logic. The case view embeds the
 objects verbatim (boundaries preserved) and rebuilds the explanation deterministically
-on read (a pure re-run of M6, not new logic).
-
-Spec references: FR-2, FR-15; Addendum §2.3, §4.
+on read (a pure re-run of, not new logic).
 """
 
 from __future__ import annotations
@@ -112,7 +110,7 @@ def _transaction_facts(package: EvidencePackage) -> TransactionFacts:
 
 
 def get_case_view(session: Session, case_id: str, *, llm_enabled: bool = False) -> CaseView:
-    """Return the composed case view; rebuild the explanation deterministically (M6)."""
+    """Return the composed case view; rebuild the explanation deterministically."""
     case = session.get(CaseModel, case_id)
     if case is None:
         raise CaseNotFound(f"case not found: {case_id}", {"case_id": case_id})
@@ -131,7 +129,7 @@ def get_case_view(session: Session, case_id: str, *, llm_enabled: bool = False) 
 
 
 def drill_down(session: Session, case_id: str, element_id: str) -> DrillDownResponse:
-    """Return the raw signal(s) behind one summarised evidence indicator (FR-15)."""
+    """Return the raw signal(s) behind one summarised evidence indicator."""
     case = session.get(CaseModel, case_id)
     if case is None:
         raise CaseNotFound(f"case not found: {case_id}", {"case_id": case_id})

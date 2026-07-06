@@ -1,7 +1,4 @@
-"""Triage queue route: prioritised, re-sortable, filterable (FR-14, FR-19).
-
-Spec references: FR-14, FR-19; Addendum §2.3.
-"""
+"""Triage queue route: prioritised, re-sortable, filterable."""
 
 from __future__ import annotations
 

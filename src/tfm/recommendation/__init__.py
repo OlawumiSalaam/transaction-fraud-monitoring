@@ -1,4 +1,4 @@
-"""Deterministic logic: recommendation policy (FR-8, FR-9). Implemented in M5."""
+"""Deterministic logic: recommendation policy."""
 
 from tfm.recommendation.policy import Recommendation, RecommendationBasis, recommend
 

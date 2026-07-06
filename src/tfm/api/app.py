@@ -59,8 +59,8 @@ def configure_app(app: FastAPI) -> None:
 
     @app.exception_handler(ServiceError)
     async def _service_error(request: Request, exc: ServiceError) -> JSONResponse:
-        # Uniform error body (Addendum §2.5). LLM issues never reach here — they
-        # degrade to the templated pathway inside the explainer (NFR-2, FR-12).
+        # Uniform error body. LLM issues never reach here — they
+        # degrade to the templated pathway inside the explainer.
         return JSONResponse(
             status_code=exc.http_status,
             content={"error": {"code": exc.code, "message": exc.message, "details": exc.details}},

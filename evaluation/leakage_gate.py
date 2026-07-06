@@ -1,12 +1,12 @@
-"""Simulator-leakage gate — the M2 progression criterion (FR-4, FR-26, §9).
+"""Simulator-leakage gate — the progression criterion.
 
 The gate answers one question: **has the model learned behavioural fraud
 patterns, or merely bookkeeping (balance-consistency) artefacts?** PaySim's
-balance-update artefacts can nearly separate fraud on their own (§9), so a model
+balance-update artefacts can nearly separate fraud on their own, so a model
 that rides them would post strong headline metrics while learning nothing
 transferable.
 
-The verdict is **evidence-based** (IMP-007). The gate assembles three strands of
+The verdict is **evidence-based**. The gate assembles three strands of
 evidence and derives the conclusion from them together:
 
 1. **Ablation** — retrain the same architecture with the balance-artifact
@@ -20,11 +20,9 @@ Any numeric thresholds are configurable decision-support defaults
 (``config/model.yaml`` → ``leakage_gate``); they support the verdict but do not
 define it. The full evidence and a human-readable rationale are always recorded.
 
-A ``fail`` model is ineligible (FR-4) regardless of headline metrics. If
+A ``fail`` model is ineligible regardless of headline metrics. If
 remediation is impossible within the submission window, the failure ships
-documented — never hidden (M2 fixed decision).
-
-Spec references: FR-4, FR-26, §9; Addendum §5 (R3); IMP-007.
+documented — never hidden (fixed decision).
 """
 
 from __future__ import annotations
@@ -55,7 +53,7 @@ class FeatureImportance(BaseModel):
 
 
 class LeakageEvidence(BaseModel):
-    """The full evidence body behind a leakage verdict (IMP-007)."""
+    """The full evidence body behind a leakage verdict."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -170,7 +168,7 @@ def run_leakage_gate(
 
 
 def _derive_verdict(evidence: LeakageEvidence, config: LeakageGateConfig) -> tuple[str, str]:
-    """Derive an evidence-based verdict and its rationale (IMP-007).
+    """Derive an evidence-based verdict and its rationale.
 
     Two evidence dimensions support the conclusion: (a) whether behavioural signal
     survives ablation (remaining PR-AUC), and (b) how much performance depended on

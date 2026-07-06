@@ -1,4 +1,4 @@
-"""Audit: append-only per-case decision record (FR-20, NFR-3)."""
+"""Audit: append-only per-case decision record."""
 
 from tfm.audit.log import AuditEventType, AuditWriter
 

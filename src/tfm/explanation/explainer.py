@@ -1,8 +1,8 @@
-"""Explainer interface + fallback orchestration (FR-10, FR-11, FR-12).
+"""Explainer interface + fallback orchestration.
 
 The Explainer turns the assembled ``EvidencePackage`` and the ``Recommendation``
 into an ``Explanation`` — plain-language prose that *consumes* evidence and never
-sources it (Addendum §4). Two implementations sit behind this interface:
+sources it. Two implementations sit behind this interface:
 
 - ``TemplatedExplainer`` (``templated.py``) — deterministic and **grounded by
   construction**: every sentence is generated from a named groundable element (or
@@ -12,10 +12,8 @@ sources it (Addendum §4). Two implementations sit behind this interface:
   is constrained to the groundable set and its output must pass the deterministic
   ``GroundingGate`` before any human sees it.
 
-Fallback contract (NFR-2, FR-12): LLM disabled, unavailable, or grounding-failed →
+Fallback contract: LLM disabled, unavailable, or grounding-failed →
 the templated explanation is returned. There is no error path for LLM issues.
-
-Spec references: FR-10, FR-11, FR-12, FR-13; §3, §5.5, §11.2; Addendum §4.
 """
 
 from __future__ import annotations
@@ -35,7 +33,7 @@ class LLMUnavailable(RuntimeError):
 
 
 class GroundingResult(BaseModel):
-    """The grounding gate verdict (FR-11). ``verified`` gates the LLM path."""
+    """The grounding gate verdict. ``verified`` gates the LLM path."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -45,10 +43,10 @@ class GroundingResult(BaseModel):
 
 
 class Explanation(BaseModel):
-    """A grounded plain-language explanation (Addendum §4).
+    """A grounded plain-language explanation.
 
-    ``ai_generated`` is always true: the prose is machine-generated (label shown by
-    M7). ``pathway`` distinguishes the deterministic templated floor from the LLM.
+    ``ai_generated`` is always true: the prose is machine-generated (label shown by.
+    ``pathway`` distinguishes the deterministic templated floor from the LLM.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -61,7 +59,7 @@ class Explanation(BaseModel):
 
 @runtime_checkable
 class Explainer(Protocol):
-    """The explanation interface consumed by the online path (Addendum §4)."""
+    """The explanation interface consumed by the online path."""
 
     def explain(self, package: EvidencePackage, recommendation: Recommendation) -> Explanation: ...
 
@@ -76,7 +74,7 @@ def explain(
 
     Order: LLM (if enabled) -> grounding gate -> pass ? LLM : templated. The
     templated explanation is always computed and is returned whenever the LLM is
-    disabled, unavailable, or fails grounding. Never raises for LLM issues (NFR-2).
+    disabled, unavailable, or fails grounding. Never raises for LLM issues.
     """
     # Imported lazily to avoid an import cycle (templated/grounding import this module).
     from tfm.explanation.templated import TemplatedExplainer

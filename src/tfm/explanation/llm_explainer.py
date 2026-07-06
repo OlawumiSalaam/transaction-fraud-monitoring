@@ -1,17 +1,15 @@
-"""LLM explainer: constrained to the groundable set (FR-10).
+"""LLM explainer: constrained to the groundable set.
 
-Version 1 ships on the templated floor (Release Plan/CLAUDE.md M6 fixed decision):
-the LLM is a **documented stub behind the real Explainer interface**. When enabled in
+Version 1 ships on the templated floor: the LLM is a **documented stub behind the
+real Explainer interface**. When enabled in
 a future version it would render the groundable evidence into prose under a
 constrained, evidence-scoped prompt, and its output would be verified by the
-deterministic ``GroundingGate`` before any human sees it (FR-11).
+deterministic ``GroundingGate`` before any human sees it.
 
 As a stub it raises ``LLMUnavailable`` so the orchestrator falls back to the templated
-explanation — exercising and proving the graceful-degradation path (FR-12, NFR-2). It
-never fabricates output. Upgrading to a minimal single provider (backlog B8) is a
+explanation — exercising and proving the graceful-degradation path. It
+never fabricates output. Upgrading to a minimal single provider is a
 configuration/implementation change behind this interface, not an architecture change.
-
-Spec references: FR-10, FR-11, FR-12; §3, §11.2; Addendum §4; backlog B8.
 """
 
 from __future__ import annotations

@@ -3,14 +3,14 @@
 Two kinds of configuration are loaded and validated at startup (fail-fast):
 
 * Environment settings (``Settings``): process/runtime configuration from env vars.
-* Governance-configurable knobs (``AppConfig``): the score-band thresholds
-  [FR-9], rule parameters [FR-6], queue-ordering policy [FR-14], and the
-  rationale-depth policy [FR-17]. These live in versioned YAML under ``CONFIG_DIR``.
+* Governance-configurable knobs (``AppConfig``): the score-band thresholds,
+  rule parameters, queue-ordering policy, and the
+  rationale-depth policy. These live in versioned YAML under ``CONFIG_DIR``.
 
 This module only *loads and validates* configuration. It contains no scoring,
 rule, recommendation, or workflow logic. The values shipped in ``config/*.yaml``
-are placeholders to be justified within their milestones (M2/M5 for thresholds,
-M3 for rule parameters).
+are placeholders to be justified within their milestones (for thresholds,
+for rule parameters).
 
 Note on the rationale engagement floor: the requirement that every disposition
 carry at least a structured reason code is an *architectural invariant* enforced
@@ -29,8 +29,8 @@ import yaml
 from pydantic import BaseModel, Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-# The four V1-demonstrable rule identifiers (FR-6). Dormant-account reactivation
-# is explicitly out of V1 scope (FR-7) and is not listed.
+# The four V1-demonstrable rule identifiers. Dormant-account reactivation
+# is explicitly out of V1 scope and is not listed.
 KNOWN_RULE_IDS: frozenset[str] = frozenset(
     {"velocity", "new_beneficiary_large", "mule_passthrough", "account_draining"}
 )
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
 
     default_analyst_id: str = "demo-analyst"
 
-    # LLM is optional; unset means the templated explanation pathway (FR-12, NFR-2).
+    # LLM is optional; unset means the templated explanation pathway.
     llm_enabled: bool = False
     llm_provider: str = ""
     llm_api_key: str = ""
@@ -60,7 +60,7 @@ class Settings(BaseSettings):
 
 
 class ScoreBandsConfig(BaseModel):
-    """Score-band boundaries mapped by the recommendation policy [FR-9].
+    """Score-band boundaries mapped by the recommendation policy.
 
     band = low       if score < low_max
          = high      if score >= high_min
@@ -78,7 +78,7 @@ class ScoreBandsConfig(BaseModel):
 
 
 class RecommendationConfig(BaseModel):
-    """Recommendation-policy parameters [FR-8, FR-9].
+    """Recommendation-policy parameters.
 
     ``escalating_rules`` are the rule ids that, when fired, warrant an *escalate*
     recommendation; any other fired rule contributes a *hold*. Governance-owned;
@@ -101,7 +101,7 @@ class ThresholdsConfig(BaseModel):
 
 
 class RulesConfig(BaseModel):
-    """Rule enablement and parameters [FR-6]. Semantics are implemented in M3."""
+    """Rule enablement and parameters."""
 
     enabled: list[str]
     parameters: dict[str, dict[str, float]]
@@ -118,7 +118,7 @@ class RulesConfig(BaseModel):
 
 
 class QueuePolicyConfig(BaseModel):
-    """Configurable, visible, re-sortable queue ordering [FR-14]. Default: risk."""
+    """Configurable, visible, re-sortable queue ordering. Default: risk."""
 
     default_sort: str
     allowed_sorts: list[str]
@@ -132,7 +132,7 @@ class QueuePolicyConfig(BaseModel):
 
 
 class GovernanceConfig(BaseModel):
-    """Rationale depth *above* the architectural engagement floor [FR-17]."""
+    """Rationale depth *above* the architectural engagement floor."""
 
     richer_rationale_required_for_actions: list[str]
     richer_rationale_required_on_deviation: bool
@@ -155,12 +155,12 @@ class AppConfig(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# Model / scoring configuration (M2) — config/model.yaml
+# Model / scoring configuration — config/model.yaml
 # ---------------------------------------------------------------------------
 
 
 class SplitConfig(BaseModel):
-    """Out-of-time split boundaries by PaySim step [§8.3, FR-22]."""
+    """Out-of-time split boundaries by PaySim step."""
 
     train_end_step: int = Field(gt=0)
     val_end_step: int = Field(gt=0)
@@ -173,14 +173,14 @@ class SplitConfig(BaseModel):
 
 
 class CalibrationConfig(BaseModel):
-    """Probability-calibration policy [FR-23]."""
+    """Probability-calibration policy."""
 
     method: Literal["auto", "isotonic", "sigmoid"] = "auto"
     min_fraud_for_isotonic: int = Field(ge=0, default=500)
 
 
 class LeakageGateConfig(BaseModel):
-    """Decision-support defaults for the simulator-leakage gate [FR-26, IMP-007].
+    """Decision-support defaults for the simulator-leakage gate.
 
     These parameters *support* the evidence-based verdict; they do not define it.
     """
@@ -191,7 +191,7 @@ class LeakageGateConfig(BaseModel):
 
 
 class ModelConfig(BaseModel):
-    """Scorer/training configuration [FR-3, FR-22, FR-23, FR-26].
+    """Scorer/training configuration.
 
     Versioned configuration for the scoring milestone: split boundaries, seed,
     evaluation reporting threshold, the quarantined balance-artifact feature set,
@@ -231,7 +231,7 @@ def load_config(settings: Settings) -> AppConfig:
 
 
 def load_model_config(settings: Settings) -> ModelConfig:
-    """Load and validate the scorer/training configuration [M2]. Fails fast."""
+    """Load and validate the scorer/training configuration. Fails fast."""
 
     config_dir = Path(settings.config_dir)
     return ModelConfig(**_read_yaml(config_dir / "model.yaml"))

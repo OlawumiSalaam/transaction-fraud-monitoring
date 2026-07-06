@@ -1,4 +1,4 @@
-"""Queue Ordering: configurable, visible, re-sortable (FR-14).
+"""Queue Ordering: configurable, visible, re-sortable.
 
-Contract: Addendum §4. Implemented in M7.
+Contract:.
 """

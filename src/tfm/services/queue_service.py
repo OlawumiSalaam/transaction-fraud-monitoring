@@ -1,11 +1,9 @@
-"""Queue service: the prioritised, re-sortable, filterable triage queue (FR-14, FR-19).
+"""Queue service: the prioritised, re-sortable, filterable triage queue.
 
 Ordering is an operational policy (config), visible and re-sortable — not a property
 of a model score. With the scorer excluded, "risk" priority is derived from the
 deterministic recommendation severity. Filtering is applied in memory (the demo
 queue is small); this is a presentation/orchestration concern, no new fraud logic.
-
-Spec references: FR-14, FR-19; Addendum §2.3.
 """
 
 from __future__ import annotations

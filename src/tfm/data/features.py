@@ -1,6 +1,6 @@
-"""Feature Builder: point-in-time interpretable features (§6.5).
+"""Feature Builder: point-in-time interpretable features.
 
-Contract (Addendum §4 — Feature Builder):
+Contract (Feature Builder):
   In:  canonical transactions DataFrame (from load_paysim_csv) + account
        history up to each transaction's event_ts.
   Out: the same DataFrame with feature columns appended.
@@ -11,19 +11,17 @@ Responsibilities:
   - Guarantee point-in-time correctness: features for transaction t use only
     data with event_ts strictly before t (within each account group).
   - Expose FEATURE_COLUMNS — the ordered list of ML input columns shared by
-    the scorer (M2), rule engine (M3), and assembler (M4).
+    the scorer, rule engine, and assembler.
   - Provide to_feature_vector() to extract a typed FeatureVector from a single
-    DataFrame row (used by the online scoring path in M2+).
+    DataFrame row (used by the online scoring path in).
 
 Invariants:
-  - sim_flagged (isFlaggedFraud) is NEVER a feature column (§6.5, §9).
+  - sim_flagged (isFlaggedFraud) is NEVER a feature column.
   - label (isFraud) is NEVER a feature column (it is the prediction target).
   - Random reordering of the input DataFrame does not change feature values
     (output is always sorted by account_id, event_ts before computing history).
 
 Not responsible for: the train/test split policy (splits.py); scoring; deciding.
-
-Spec references: §6.5, FR-1, FR-5, R2 (temporal leakage, Addendum §5).
 """
 
 from __future__ import annotations
@@ -38,7 +36,7 @@ from tfm.schema.evidence import FeatureVector
 
 _log = get_logger(__name__)
 
-# Progress-logging cadence for the offline feature-building stage (IMP-009).
+# Progress-logging cadence for the offline feature-building stage.
 # Emitting one structured line every _PROGRESS_INTERVAL rows keeps a full-scale
 # PaySim run observable without perturbing feature semantics.  On small inputs
 # (unit/property tests) the interval is never reached, so only start/complete
@@ -46,11 +44,11 @@ _log = get_logger(__name__)
 _PROGRESS_INTERVAL = 500_000
 
 # Ordered list of the canonical feature substrate.  Shared verbatim by the rule
-# engine (M3) and the evidence assembler (M4).  The ML scorer does NOT train on
-# this list verbatim: after the M2 leakage FAIL the balance artifacts were
+# engine and the evidence assembler. The ML scorer does NOT train on
+# this list verbatim: after the leakage FAIL the balance artifacts were
 # quarantined, so the interpretable primary trains on the PRIMARY_FEATURE_COLUMNS
 # subset (this list minus the balance artifacts, plus the behavioural additions);
-# see IMP-011.
+# see.
 # bal_dest_before / bal_dest_after are excluded here: they are None for
 # merchant counterparties and require imputation before use in ML training; they
 # remain in the DataFrame and in the FeatureVector for evidence and rule use, and
@@ -70,8 +68,8 @@ FEATURE_COLUMNS: list[str] = [
     "amount_sum_24h",
     "is_new_counterparty",
     "distinct_counterparties_seen",
-    # Account-baseline deviation & sequence signals (§9; IMP-011). Point-in-time,
-    # account-behavioural family — added in the M2 remediation cycle so the
+    # Account-baseline deviation & sequence signals. Point-in-time,
+    # account-behavioural family — added in the remediation cycle so the
     # interpretable primary can learn behavioural fraud signal without the
     # quarantined balance artifacts.
     "amount_to_prior_mean_ratio",
@@ -79,11 +77,11 @@ FEATURE_COLUMNS: list[str] = [
     "hours_since_last_txn",
 ]
 
-# Balance-consistency artifact features (§6.5, §9). Quarantined from the ML
-# primary after the M2 leakage FAIL (IMP-011): they RIDE the simulator's
+# Balance-consistency artifact features. Quarantined from the ML
+# primary after the leakage FAIL: they RIDE the simulator's
 # bookkeeping identity rather than behavioural fraud signal. They remain in
 # FEATURE_COLUMNS, the FeatureVector, and the canonical dataset for the rule
-# engine (FR-6 account-draining) and the evidence layer — quarantine applies
+# engine( account-draining) and the evidence layer — quarantine applies
 # only to the learned scorer's feature matrix, not to deterministic rules.
 _BALANCE_ARTIFACT_FEATURES: list[str] = [
     "bal_orig_before",
@@ -93,12 +91,12 @@ _BALANCE_ARTIFACT_FEATURES: list[str] = [
 ]
 
 # Destination-balance signals available to the kitchen-sink comparator only
-# (IMP-004): None for merchant rows, zero-imputed inside the LightGBM pipeline.
+#: None for merchant rows, zero-imputed inside the LightGBM pipeline.
 _AUGMENTED_FEATURES: list[str] = ["bal_dest_before", "bal_dest_after"]
 
 # The interpretable primary (and the logistic floor) train on the behavioural
 # substrate only: the shared canonical features minus the quarantined balance
-# artifacts (IMP-011). Defined explicitly for auditability; the coherence test
+# artifacts. Defined explicitly for auditability; the coherence test
 # test_primary_columns_exclude_balance_artifacts binds this to the gate's
 # configured balance_artifact_features so the two cannot drift.
 PRIMARY_FEATURE_COLUMNS: list[str] = [
@@ -106,7 +104,7 @@ PRIMARY_FEATURE_COLUMNS: list[str] = [
 ]
 
 # The kitchen-sink comparator adds the destination-balance signals on top of the
-# full canonical substrate (the DF-1 interpretable-vs-kitchen-sink contrast).
+# full canonical substrate (the interpretable-vs-kitchen-sink contrast).
 COMPARATOR_FEATURE_COLUMNS: list[str] = [*FEATURE_COLUMNS, *_AUGMENTED_FEATURES]
 
 
@@ -126,7 +124,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     test_features_point_in_time_invariant and
     test_features_counterparty_prior_transactions_invariant verify this.
 
-    Implementation note (IMP-009): the account-behavioural and counterparty
+    Implementation note: the account-behavioural and counterparty
     features are computed in a single linear pass over the globally
     (account_id, event_ts)-sorted frame, resetting per-account window state at
     each account boundary.  Because the global stable sort already places each
@@ -136,8 +134,6 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     concatenation, so peak memory is O(N) with a small constant rather than
     O(number-of-accounts) DataFrame objects.  The equivalence is pinned by
     test_features_single_pass_matches_grouped_reference.
-
-    Spec: §6.5, FR-5, R2 (Addendum §5 — temporal leakage guard).
     """
     df = df.sort_values(["account_id", "event_ts"], kind="stable").reset_index(drop=True)
     n = len(df)
@@ -175,7 +171,7 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
     amount_sum_24h = np.zeros(n, dtype=np.float64)
     is_new_cp = np.ones(n, dtype=bool)
     distinct_cp = np.zeros(n, dtype=np.int64)
-    # Account-baseline deviation & sequence (§9; IMP-011): NaN on the account's
+    # Account-baseline deviation & sequence: NaN on the account's
     # first transaction (no prior baseline) and where a prior-amount denominator
     # is 0 (ratio undefined) — mirrors frac_bal_orig_moved's None-on-zero rule.
     amt_to_prior_mean = np.full(n, np.nan, dtype=np.float64)
@@ -262,13 +258,11 @@ def build_features(df: pd.DataFrame) -> pd.DataFrame:
 def to_feature_vector(row: pd.Series) -> FeatureVector:
     """Extract a typed FeatureVector from a single build_features output row.
 
-    Used by the online scoring path (M2+) to produce a typed, validated feature
+    Used by the online scoring path to produce a typed, validated feature
     vector from a single transaction's row in the features DataFrame.
 
     The caller must ensure the row comes from build_features output (i.e., all
     feature columns are present).
-
-    Spec: Addendum §4 (Feature Builder output contract), §6.5.
     """
 
     def _opt_float(val: object) -> float | None:

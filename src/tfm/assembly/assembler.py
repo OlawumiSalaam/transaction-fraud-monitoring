@@ -1,39 +1,37 @@
-"""Evidence Assembler: builds the Case evidence package, defines the groundable set (FR-2).
+"""Evidence Assembler: builds the Case evidence package, defines the groundable set.
 
-Contract (Addendum §4 — Evidence Assembler):
+Contract (Evidence Assembler):
   In:  transaction + account history + counterparty + score(-status) + rule hits.
-  Out: the assembled EvidencePackage answering the seven evidence requirements
-       (§265), plus the explicit groundable evidence set.
+  Out: the assembled EvidencePackage answering the seven evidence requirements,
+       plus the explicit groundable evidence set.
 
 Architectural responsibility: the assembler *assembles* — it does not score,
 recommend, explain, rank, or decide (Layer Separation). Every emitted element
 traces to a canonical field, a rule hit, or a score signal (total traceability
-invariant). The recommendation (M5) and explanation (M6) are populated downstream.
+invariant). The recommendation and explanation are populated downstream.
 
-The seven evidence requirements (§265) and their sources:
+The seven evidence requirements and their sources:
   1. What happened            → transaction facts (amount, timestamp, type, origin, counterparty)
   2. Why flagged (human terms)→ interpretable feature fields + rule hits
   3. Abnormal for this account→ the account's prior history (or an explicit no-baseline element)
   4. Broader pattern          → counterparty linkage
   5. Direction + balances     → direction and both-side balances
-  6. Risk score               → the score, or its honest FR-4 exclusion
+  6. Risk score → the score, or its honest exclusion
   7. Synthetic-data disclosure→ display-only disclosure (never grounded)
 
 Honest degradation:
-  - Ineligible scorer (FR-4): requirement 6 is a populated ``score_signal`` element
+  - Ineligible scorer: requirement 6 is a populated ``score_signal`` element
     carrying the exclusion reason but no probability — so no score value traces to
     any element and a score claim is structurally ungroundable.
   - First-observed account: requirement 3 is an explicit no-baseline element whose
     stated reason is itself groundable.
 
 Groundable classification (documented, tested):
-  - Groundable (M6 may cite): transaction facts, direction+balances, interpretable
+  - Groundable (may cite): transaction facts, direction+balances, interpretable
     features, account history / no-baseline (incl. reason), counterparty, rule hits,
     and the score signal (incl. the exclusion reason).
   - Display-only (not groundable): the synthetic-data disclosure — shown to the
-    analyst (FR-13) but not an evidentiary claim about the transaction's risk.
-
-Spec references: FR-2, FR-13; §6.2, §6.4, §6.7, §265; Addendum §4.
+    analyst but not an evidentiary claim about the transaction's risk.
 """
 
 from __future__ import annotations
@@ -50,7 +48,7 @@ from tfm.schema.evidence import (
     ScoreStatus,
 )
 
-# Requirement 7 (§6.4, §6.7): no real or identifiable customer data is present.
+# Requirement 7: no real or identifiable customer data is present.
 SYNTHETIC_DATA_DISCLOSURE = (
     "All data is synthetic (PaySim mobile-money simulator); no real or identifiable "
     "customer information is present. Results are measured on synthetic data."
@@ -188,7 +186,7 @@ def _rule_element(hit: RuleHit) -> EvidenceElement:
 
 
 def _score_signal(score: ScoreStatus) -> EvidenceElement:
-    """Requirement 6 — the risk score, or its honest FR-4 exclusion.
+    """Requirement 6 — the risk score, or its honest exclusion.
 
     When excluded, the raw payload carries the reason but NO probability, so no score
     value traces to any element (a score claim is structurally ungroundable).
@@ -245,7 +243,7 @@ def assemble_evidence(
     score: ScoreStatus,
     rule_hits: Sequence[RuleHit],
 ) -> EvidencePackage:
-    """Assemble the evidence package for one flagged transaction (FR-2, push).
+    """Assemble the evidence package for one flagged transaction(push).
 
     Pure function of its domain inputs — no I/O, no mutation. The caller (the
     ingest/pipeline service) supplies the point-in-time inputs; this function pushes

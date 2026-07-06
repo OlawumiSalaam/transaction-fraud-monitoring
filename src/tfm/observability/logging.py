@@ -1,7 +1,7 @@
 """Structured application logging.
 
 This configures process/application logging only. It is deliberately separate
-from the audit log: the audit record [FR-20] is a durable domain artifact written
+from the audit log: the audit record is a durable domain artifact written
 to the ``audit_log`` table by the Audit Writer, not a log line. Application logs
 are operational telemetry and must never be treated as the audit trail.
 """

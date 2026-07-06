@@ -1,23 +1,21 @@
-"""Grounding Gate: deterministic post-check, ungrounded rate approx 0 (FR-11).
+"""Grounding Gate: deterministic post-check, ungrounded rate approx 0.
 
-Deterministic code — **never a model** (Addendum §4). The gate builds a reference
-set from the case's groundable ``EvidenceElement``s (the M4 contract) plus the
+Deterministic code — **never a model**. The gate builds a reference
+set from the case's groundable ``EvidenceElement``s (the contract) plus the
 recommendation's controlled vocabulary, then verifies that every factual token in a
 generated narrative traces to that set:
 
 - **numbers** (amounts, percentages, counts, thresholds) — after canonical
   normalization (strip ``$`` and thousands separators; map ``%`` to a fraction), so
-  ``"$441,423.00"`` == ``441423.0`` and ``"90%"`` == ``0.9`` (R4);
+  ``"$441,423.00"`` == ``441423.0`` and ``"90%"`` == ``0.9``;
 - **entities and controlled terms** (account/counterparty/txn ids, transaction
-  types, rule identifiers, model version ids, ``FR-4``, the recommendation action /
+  types, rule identifiers, model version ids, ````, the recommendation action /
   confidence / score band) — grounded strings are masked out first, then any
   residual id-/type-/rule-shaped token is an ungrounded violation.
 
 ``pass`` implies every numeric and entity token in the narrative is present in the
 reference set. On failure the orchestrator falls back to the templated explanation.
 The templated path is grounded by construction and bypasses the gate.
-
-Spec references: FR-11, FR-24, §8, §357; Addendum §4; Risk R4/R5.
 """
 
 from __future__ import annotations

@@ -1,28 +1,26 @@
-"""Ingestion: PaySim CSV to canonical schema (FR-1).
+"""Ingestion: PaySim CSV to canonical schema.
 
-Contract (Addendum §4 — Ingestion):
+Contract (Ingestion):
   In:  raw PaySim CSV file.
   Out: canonical rows persisted to accounts, counterparties, transactions.
 
 Responsibilities:
-  - Map PaySim column names to the canonical schema (§6.2).
+  - Map PaySim column names to the canonical schema.
   - Derive event_ts from the PaySim step field (fixed epoch documented below).
   - Flag merchant destinations (PaySim nameDest 'M' prefix).
   - Null out destination balances for merchant counterparties (no balance signal).
   - Persist accounts, counterparties, and transactions idempotently.
 
-Invariants (Addendum §4):
+Invariants:
   - No discriminating field is dropped: direction, both-side balances,
     counterparty are all preserved.
   - Every transaction has an account_id → accounts and counterparty_id →
     counterparties.
   - event_ts is non-decreasing in step (monotonic time ordering).
   - sim_flagged (isFlaggedFraud) is persisted for provenance and excluded from
-    every downstream feature computation (§6.5, §9).
+    every downstream feature computation.
 
 Not responsible for: computing features; scoring; interpreting fraud.
-
-Spec references: FR-1, §6.2, §6.3, R1 (Addendum §5).
 """
 
 from __future__ import annotations
@@ -35,7 +33,7 @@ from sqlalchemy.orm import Session
 
 from tfm.persistence.models import Account, Counterparty, Transaction
 
-# PaySim step 0 → 2024-01-01T00:00:00Z (arbitrary but fixed for reproducibility, NFR-5).
+# PaySim step 0 → 2024-01-01T00:00:00Z (arbitrary but fixed for reproducibility).
 # All downstream code uses event_ts for time-ordering and OOT splits, not the raw step.
 PAYSIM_BASE_EPOCH: datetime = datetime(2024, 1, 1, 0, 0, 0, tzinfo=UTC)
 
@@ -62,7 +60,7 @@ def _step_to_event_ts(step: int) -> datetime:
 
 
 def _is_merchant(name: str) -> bool:
-    """PaySim merchant destinations are prefixed with 'M' (R1 guard, Addendum §4)."""
+    """PaySim merchant destinations are prefixed with 'M'."""
     return str(name).startswith("M")
 
 
@@ -85,14 +83,14 @@ def load_paysim_csv(path: Path) -> pd.DataFrame:
 
     df = df.rename(columns=_PAYSIM_COLUMNS)
 
-    # Stable, deterministic transaction id from row position in the CSV (NFR-5).
+    # Stable, deterministic transaction id from row position in the CSV.
     df["txn_id"] = [f"paysim-{i:07d}" for i in range(len(df))]
 
     df["event_ts"] = df["step"].apply(_step_to_event_ts)
     df["is_merchant_dest"] = df["counterparty_id"].apply(_is_merchant)
     df["direction"] = "outbound"  # PaySim: all transactions are origin → destination
 
-    # Merchant destinations carry no balance signal (R1, Addendum §4, §3.2).
+    # Merchant destinations carry no balance signal.
     merchant_mask = df["is_merchant_dest"]
     df.loc[merchant_mask, "bal_dest_before"] = None
     df.loc[merchant_mask, "bal_dest_after"] = None
@@ -109,7 +107,7 @@ def ingest_to_db(df: pd.DataFrame, session: Session) -> int:
     Returns the count of new Transaction rows inserted.
 
     Invariants:
-    - sim_flagged is persisted for provenance; it is not a feature (§6.5, §9).
+    - sim_flagged is persisted for provenance; it is not a feature.
     - Every Transaction row has a valid account_id and counterparty_id.
     - Existing rows are skipped; this function is safe to call incrementally.
     """

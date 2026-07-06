@@ -1,10 +1,8 @@
-"""API request/response schemas for the analyst workspace (M7).
+"""API request/response schemas for the analyst workspace.
 
-These compose the M4/M5/M6 domain objects for the case view — they never
+These compose the domain objects for the case view — they never
 duplicate or re-derive them. The presentation layer (``web/``) maps these into
 analyst language; the API returns the composed, bounded objects.
-
-Spec references: FR-13, FR-14, FR-15, FR-16, FR-17, FR-18; Addendum §2.3, §2.4.
 """
 
 from __future__ import annotations
@@ -33,7 +31,7 @@ class TransactionFacts(BaseModel):
 
 
 class QueueItem(BaseModel):
-    """One row of the triage queue (FR-14)."""
+    """One row of the triage queue."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -49,7 +47,7 @@ class QueueItem(BaseModel):
 
 
 class QueueResponse(BaseModel):
-    """The queue plus its visible ordering basis and applied filters (FR-14, FR-19)."""
+    """The queue plus its visible ordering basis and applied filters."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -62,8 +60,8 @@ class QueueResponse(BaseModel):
 class CaseView(BaseModel):
     """The complete case presented to the analyst — composed, boundaries preserved.
 
-    ``evidence`` / ``recommendation`` / ``explanation`` are the M4 / M5 / M6 objects
-    embedded verbatim; ``disposition_options`` carry no default selection (FR-15).
+    ``evidence`` / ``recommendation`` / ``explanation`` are the objects
+    embedded verbatim; ``disposition_options`` carry no default selection.
     """
 
     model_config = ConfigDict(frozen=True)
@@ -79,7 +77,7 @@ class CaseView(BaseModel):
 
 
 class DrillDownResponse(BaseModel):
-    """The raw signal(s) behind one summarised evidence indicator (FR-15)."""
+    """The raw signal(s) behind one summarised evidence indicator."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -91,7 +89,7 @@ class DrillDownResponse(BaseModel):
 
 
 class DispositionRequest(BaseModel):
-    """The analyst's decision (Addendum §2.4). The human is the sole decider."""
+    """The analyst's decision. The human is the sole decider."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -102,7 +100,7 @@ class DispositionRequest(BaseModel):
 
 
 class DispositionResponse(BaseModel):
-    """The recorded disposition + routing outcome (Addendum §2.4)."""
+    """The recorded disposition + routing outcome."""
 
     model_config = ConfigDict(frozen=True)
 

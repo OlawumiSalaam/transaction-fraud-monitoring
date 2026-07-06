@@ -1,16 +1,14 @@
-"""Model evaluation metrics on the out-of-time split (FR-22).
+"""Model evaluation metrics on the out-of-time split.
 
 Primaries: PR-AUC (average precision), precision, recall. Secondary: ROC-AUC.
 Calibration quality: Brier score. All metrics are computed on the OOT split and
-are reported labelled *measured on synthetic PaySim data* (§7, §8).
+are reported labelled *measured on synthetic PaySim data*.
 
 Precision and recall require an operating threshold; here they are reported at a
 configurable evaluation threshold (``eval_threshold`` in ``config/model.yaml``)
 purely so the two metrics are defined. The *operating* threshold — the score
-bands mapped to clear/hold/escalate — is a governance decision made in M5
-(FR-9), not here. PR-AUC and ROC-AUC are threshold-free.
-
-Spec references: FR-22, §8.
+bands mapped to clear/hold/escalate — is a governance decision made,
+not here. PR-AUC and ROC-AUC are threshold-free.
 """
 
 from __future__ import annotations
@@ -27,7 +25,7 @@ from sklearn.metrics import (
 
 
 class EvalMetrics(BaseModel):
-    """Out-of-time evaluation metrics for one model (FR-22)."""
+    """Out-of-time evaluation metrics for one model."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -46,7 +44,7 @@ def _safe(metric: float | None) -> float:
 
 
 def compute_metrics(y_true: np.ndarray, y_prob: np.ndarray, eval_threshold: float) -> EvalMetrics:
-    """Compute the FR-22 metric set from labels and predicted probabilities.
+    """Compute the metric set from labels and predicted probabilities.
 
     ROC-AUC and PR-AUC are undefined when only one class is present; they are
     reported as NaN in that degenerate case rather than raising.

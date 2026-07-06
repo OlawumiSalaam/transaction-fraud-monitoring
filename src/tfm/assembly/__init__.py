@@ -1,4 +1,4 @@
-"""Evidence assembly (FR-2). Implemented in M4."""
+"""Evidence assembly."""
 
 from tfm.assembly.assembler import (
     NO_BASELINE_REASON,

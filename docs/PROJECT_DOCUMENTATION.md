@@ -1115,10 +1115,7 @@ invariants, the dataset selection and its rationale, the governance decisions, a
 critically — the leakage-gate decision to exclude the scorer. AI assistance operated
 within those constraints; it did not set them.
 
-> The disclosure above reflects the governance evidenced in the repository.
-> Contributors should extend it with any additional AI tools used (for example, a
-> specific IDE assistant or model, and versions) so the disclosure stays complete and
-> accurate.
+
 
 ### 14.5 Compliance summary
 

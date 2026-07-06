@@ -1,6 +1,6 @@
-"""Measured vs modelled-estimate labelling for offline evaluation (§7).
+"""Measured vs modelled-estimate labelling for offline evaluation.
 
-Rule of record (§7.3): no metric that requires production users or real outcomes
+Rule of record: no metric that requires production users or real outcomes
 is claimed as measured evidence. Model metrics on synthetic PaySim are *measured
 on synthetic distributions* but a *modelled estimate* of real-world performance;
 grounding integrity is genuinely *measured* (the evidence set is known on synthetic

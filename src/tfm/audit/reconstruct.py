@@ -1,4 +1,4 @@
-"""Decision reconstruction from the audit log alone (M8, NFR-3).
+"""Decision reconstruction from the audit log alone.
 
 ``reconstruct_decision`` reads a single ``disposition_recorded`` row and validates
 its ``DecisionSnapshot`` payload back into typed objects. It is **pure
@@ -7,8 +7,6 @@ generation, grounding gate, or configuration — and reads no operational table
 (``cases``, ``dispositions``, ``transactions``, ``rule_hits``). The audit log is
 the sole source, which is what makes a decision reconstructable after the fact even
 if that decision logic later changes.
-
-Spec references: FR-20, NFR-3; Addendum §3; Release Plan §M8.
 """
 
 from __future__ import annotations

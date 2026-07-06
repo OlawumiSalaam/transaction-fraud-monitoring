@@ -1,25 +1,23 @@
-"""The bounded candidate model set (FR-3, DF-1).
+"""The bounded candidate model set.
 
-Three candidates, ratified in Addendum §4 and Implementation Plan §7:
+Three candidates, ratified in and:
 
 - **HistGradientBoosting** — the interpretable *primary*. Handles ``NaN``
   natively (no imputation of the structural merchant-destination gaps), and its
   behaviour is inspectable via permutation importance. Trained on
   ``PRIMARY_FEATURE_COLUMNS`` — the behavioural substrate, i.e. the canonical
-  features minus the quarantined balance artifacts (IMP-011).
+  features minus the quarantined balance artifacts.
 - **LightGBM** — the *kitchen-sink comparator*. Trained on
   ``COMPARATOR_FEATURE_COLUMNS`` (the full canonical set + destination-balance
-  features), which supplies the DF-1 interpretable-vs-kitchen-sink contrast.
+  features), which supplies the interpretable-vs-kitchen-sink contrast.
 - **Logistic regression** — the *baseline floor*. Imputed and standardised;
   trained on the same behavioural substrate as the primary; sanity-checks that
-  the boosters earn their complexity (DF-1).
+  the boosters earn their complexity.
 
-Each candidate owns its preprocessing (IMP-006). Model hyperparameters are fixed
-engineering defaults with a pinned seed for reproducibility (NFR-5); the
+Each candidate owns its preprocessing. Model hyperparameters are fixed
+engineering defaults with a pinned seed for reproducibility; the
 governance-sensitive parameters (thresholds, the leakage-gate defaults) live in
 versioned config, not here.
-
-Spec references: FR-3, FR-5, DF-1, §6.5; Addendum §4; Implementation Plan §7.
 """
 
 from __future__ import annotations
@@ -39,7 +37,7 @@ class CandidateSpec:
     is_primary: bool = False
 
     def make_preprocessor(self) -> Any | None:
-        """Build a fresh, unfitted preprocessor (candidate-private, IMP-006)."""
+        """Build a fresh, unfitted preprocessor (candidate-private)."""
         from sklearn.impute import SimpleImputer
         from sklearn.pipeline import Pipeline
         from sklearn.preprocessing import StandardScaler
@@ -47,7 +45,7 @@ class CandidateSpec:
         if self.kind == "histgb":
             return None  # NaN-native; no imputation or scaling
         if self.kind == "lightgbm":
-            # Zero-impute the augmented destination-balance gaps (IMP-004/IMP-006).
+            # Zero-impute the augmented destination-balance gaps.
             return SimpleImputer(strategy="constant", fill_value=0.0)
         if self.kind == "logistic":
             return Pipeline(
@@ -86,9 +84,9 @@ def build_candidates(
 
     ``primary_features`` is ``PRIMARY_FEATURE_COLUMNS`` — the behavioural substrate
     the interpretable primary and the logistic floor train on (the shared canonical
-    features minus the quarantined balance artifacts, IMP-011). ``comparator_features``
+    features minus the quarantined balance artifacts). ``comparator_features``
     is ``COMPARATOR_FEATURE_COLUMNS`` — the full canonical set plus the augmented
-    destination-balance signals, used by the kitchen-sink comparator for the DF-1
+    destination-balance signals, used by the kitchen-sink comparator for the
     contrast.
     """
     return [

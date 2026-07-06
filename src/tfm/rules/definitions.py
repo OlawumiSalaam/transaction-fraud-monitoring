@@ -1,26 +1,24 @@
-"""Deterministic rule definitions for the documented fraud typology (FR-6).
+"""Deterministic rule definitions for the documented fraud typology.
 
 Each definition is a pure function ``(FeatureVector, params) -> RuleHit | None`` over
 the shared canonical feature substrate. Rules are auditable if-then only — no
-probabilistic step and no dependence on the ML score (Addendum §4). Parameters come
+probabilistic step and no dependence on the ML score. Parameters come
 from ``config/rules.yaml``; the logic contains no literals.
 
 Balance/sequence features (``frac_bal_orig_moved``, ``orig_account_emptied``) are used
-here legitimately: §6.5 names them as the balance/sequence family for the rule engine
-and FR-6 names the account-draining pattern. The IMP-011 leakage quarantine applied
+here legitimately: names them as the balance/sequence family for the rule engine
+and names the account-draining pattern. The leakage quarantine applied
 only to the ML scorer's *learned* dependence, not to transparent deterministic rules.
 
 Real definitions (evaluate on a single-transaction FeatureVector):
-- ``account_draining``      — a large fraction of the origin balance moved (§6.5).
+- ``account_draining`` — a large fraction of the origin balance moved.
 - ``velocity``              — a transaction-count spike in the trailing 24 h window.
 - ``new_beneficiary_large`` — a large amount to a first-seen counterparty.
 
-Extension-point stub (documented no-op behind the interface — IC-M3-01):
-- ``mule_passthrough``      — the inbound-then-outbound signature (§6.5) needs
-  cross-transaction peer context (the M4 assembler's assembled evidence); it is not
-  present on a single-transaction FeatureVector. Activated in M4.
-
-Spec references: FR-6, FR-7, §6.5, §6.6; Addendum §4; Release Plan M3; IMP-011.
+Extension-point stub (documented no-op behind the interface —):
+- ``mule_passthrough`` — the inbound-then-outbound signature needs
+  cross-transaction peer context (the assembler's assembled evidence); it is not
+  present on a single-transaction FeatureVector. Activated.
 """
 
 from __future__ import annotations
@@ -35,8 +33,8 @@ RuleDefinition = Callable[[FeatureVector, dict[str, float]], "RuleHit | None"]
 def account_draining(features: FeatureVector, params: dict[str, float]) -> RuleHit | None:
     """Fire when a large fraction of the origin balance moves in one transaction.
 
-    PaySim's signature draining pattern (§6.6). Uses the canonical balance/sequence
-    feature ``frac_bal_orig_moved`` (§6.5); None (undefined fraction, zero prior
+    PaySim's signature draining pattern. Uses the canonical balance/sequence
+    feature ``frac_bal_orig_moved``; None (undefined fraction, zero prior
     balance) never fires.
     """
     threshold = params["min_fraction_of_balance"]
@@ -59,7 +57,7 @@ def account_draining(features: FeatureVector, params: dict[str, float]) -> RuleH
 def velocity(features: FeatureVector, params: dict[str, float]) -> RuleHit | None:
     """Fire on a transaction-count spike in the trailing window.
 
-    Reads the canonical ``txn_count_24h`` (the M1 account-behavioural 24 h sliding
+    Reads the canonical ``txn_count_24h`` (the account-behavioural 24 h sliding
     window). The window is fixed by that feature at 24 h; ``window_hours`` in config
     is recorded as evidence and is expected to match.
     """
@@ -82,7 +80,7 @@ def new_beneficiary_large(features: FeatureVector, params: dict[str, float]) -> 
     """Fire on a large amount to a first-seen counterparty (new-beneficiary + large).
 
     Uses the canonical ``is_new_counterparty`` and ``amount`` — a single-transaction
-    signature of funds directed to a fresh mule/beneficiary (§6.5 counterparty family).
+    signature of funds directed to a fresh mule/beneficiary(counterparty family).
     """
     threshold = params["amount_threshold"]
     if not features.is_new_counterparty or features.amount < threshold:
@@ -100,23 +98,23 @@ def new_beneficiary_large(features: FeatureVector, params: dict[str, float]) -> 
 
 
 def mule_passthrough(features: FeatureVector, params: dict[str, float]) -> RuleHit | None:
-    """Documented no-op (IC-M3-01).
+    """Documented no-op.
 
-    The inbound-then-rapid-outbound mule signature (§6.5) is inherently
+    The inbound-then-rapid-outbound mule signature is inherently
     cross-transaction: it requires knowing the account received funds and is
-    forwarding ~that amount within a window. That linkage is the M4 assembler's
-    assembled-evidence responsibility (Addendum §4 — the rule engine's input is
+    forwarding ~that amount within a window. That linkage is the assembler's
+    assembled-evidence responsibility (the rule engine's input is
     "the assembled evidence for a transaction"); it is not present on a
     single-transaction ``FeatureVector``, and it must not be approximated with the
     remediation-specific ``hours_since_last_txn`` (which measures the gap to the
     prior *outbound* row, not an inbound-then-outbound passthrough). This definition
-    is registered behind the interface and never fires until M4 supplies peer
-    evidence. See IC-M3-01 in PROGRESS.md.
+    is registered behind the interface and never fires until supplies peer
+    evidence. See in PROGRESS.md.
     """
     return None
 
 
-# All four FR-6 rule ids resolve to a definition; the config validator
+# All four rule ids resolve to a definition; the config validator
 # (RulesConfig) guarantees only KNOWN_RULE_IDS can be enabled, and the coherence
 # test asserts REGISTRY covers exactly KNOWN_RULE_IDS.
 REGISTRY: dict[str, RuleDefinition] = {

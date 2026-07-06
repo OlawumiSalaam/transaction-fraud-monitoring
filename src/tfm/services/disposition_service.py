@@ -1,12 +1,10 @@
-"""Disposition service: the human decision boundary (FR-16, FR-17, FR-18, FR-20).
+"""Disposition service: the human decision boundary.
 
 The analyst is the sole decider. This service enforces the engagement floor (a
 reason code is mandatory), the rationale-graduation policy (richer rationale for
 escalate / deviation), computes the deviation flag, routes the case as a **state
 change only** (no financial action), and writes the **complete decision snapshot**
-to the append-only audit log at write time (FR-20; the demo depends on this).
-
-Spec references: FR-16, FR-17, FR-18, FR-20; §11.2; Addendum §2.4, §4.
+to the append-only audit log at write time(the demo depends on this).
 """
 
 from __future__ import annotations
@@ -41,7 +39,7 @@ _OPEN_STATUSES = ("queued", "pending")
 
 
 def _model_version_id(evidence: EvidencePackage) -> str | None:
-    """The excluded scorer's id, carried in the evidence for lineage (FR-4)."""
+    """The excluded scorer's id, carried in the evidence for lineage."""
     for element in evidence.elements:
         if element.element_id == "score_signal":
             value = element.raw.get("model_version_id")
@@ -93,8 +91,8 @@ def record_disposition(
     resolved_follow_up = follow_up if action == "hold" else None
     now = datetime.now(UTC)
 
-    # Compose exactly what the analyst saw, then freeze it (M8). get_case_view
-    # deterministically re-derives the M4/M5/M6 artifacts here, on the write path;
+    # Compose exactly what the analyst saw, then freeze it. get_case_view
+    # deterministically re-derives the artifacts here, on the write path;
     # the snapshot below is the immutable record. Reconstruction never re-runs this.
     view = case_service.get_case_view(session, case_id, llm_enabled=llm_enabled)
 
@@ -112,7 +110,7 @@ def record_disposition(
     )
     session.add(disposition)
 
-    # Single, complete, versioned decision snapshot (FR-20, NFR-3; Release Plan §M8).
+    # Single, complete, versioned decision snapshot.
     # Self-contained: evidence, recommendation, explanation (text + grounding),
     # disposition + rationale + deviation, routing state, provenance, identity, time.
     snapshot = build_decision_snapshot(

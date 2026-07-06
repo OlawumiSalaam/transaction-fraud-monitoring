@@ -1,4 +1,4 @@
-"""Service-layer errors mapped to the uniform API error contract (Addendum §2.5)."""
+"""Service-layer errors mapped to the uniform API error contract."""
 
 from __future__ import annotations
 

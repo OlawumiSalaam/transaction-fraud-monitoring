@@ -1,11 +1,9 @@
-"""Model registry: only a leakage-gate-passing version is loadable (FR-4, FR-26).
+"""Model registry: only a leakage-gate-passing version is loadable.
 
-The registry persists and loads the online scorer artifact. FR-4 is enforced
+The registry persists and loads the online scorer artifact. is enforced
 here: a model version that did not pass the simulator-leakage gate is **not
 loadable in the online path**. Offline inspection may override the check
 explicitly, but the operational loader never does.
-
-Spec references: FR-4, FR-26; Addendum §4.
 """
 
 from __future__ import annotations
@@ -19,7 +17,7 @@ from tfm.ml.model import FittedScorer
 
 
 class IneligibleModelError(RuntimeError):
-    """Raised when an online load is attempted on a non-gate-passing model (FR-4)."""
+    """Raised when an online load is attempted on a non-gate-passing model."""
 
 
 def save_scorer(
@@ -44,7 +42,7 @@ def load_scorer(path: Path, *, require_pass: bool = True) -> FittedScorer:
     """Load a fitted scorer.
 
     In the online path (``require_pass=True``, the default) a model that did not
-    pass the leakage gate raises ``IneligibleModelError`` (FR-4). Offline tools may
+    pass the leakage gate raises ``IneligibleModelError``. Offline tools may
     pass ``require_pass=False`` to inspect an ineligible model.
     """
     bundle: dict[str, Any] = joblib.load(path)

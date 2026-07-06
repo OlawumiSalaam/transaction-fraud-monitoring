@@ -1,9 +1,7 @@
-"""Disposition route: record the analyst's decision + route + audit (M7).
+"""Disposition route: record the analyst's decision + route + audit.
 
 The analyst is the sole decider; identity comes from the ``X-Analyst-Id`` header
-(default from settings) purely to populate the audit trail (Addendum §2.2).
-
-Spec references: FR-16, FR-17, FR-18, FR-20; Addendum §2.3, §2.4.
+(default from settings) purely to populate the audit trail.
 """
 
 from __future__ import annotations

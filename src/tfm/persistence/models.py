@@ -1,5 +1,5 @@
-"""Relational models mapping the approved DB schema (Addendum §3) to the
-Canonical Evidence Schema (§6.2).
+"""Relational models mapping the approved DB schema to the
+Canonical Evidence Schema.
 
 These are table/column definitions only. They contain no scoring, rule,
 assembly, recommendation, or workflow logic. Two architectural invariants are
@@ -81,13 +81,13 @@ class Transaction(Base):
     bal_dest_before: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     bal_dest_after: Mapped[float | None] = mapped_column(Numeric, nullable=True)
 
-    # PaySim isFlaggedFraud: ingested for provenance, EXCLUDED from features (§6.5, §9).
+    # PaySim isFlaggedFraud: ingested for provenance, EXCLUDED from features.
     sim_flagged: Mapped[bool] = mapped_column(Boolean, default=False)
     label: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
     __table_args__ = (
         # Account-linked, time-ordered history: the load-bearing structural
-        # requirement of the canonical schema (§6.2).
+        # requirement of the canonical schema.
         Index("ix_transactions_account_ts", "account_id", "event_ts"),
         Index("ix_transactions_counterparty", "counterparty_id"),
         Index("ix_transactions_event_ts", "event_ts"),
@@ -95,17 +95,17 @@ class Transaction(Base):
 
 
 class ModelVersion(Base):
-    """Model provenance. Only a leakage-gate-passing version is eligible (FR-4)."""
+    """Model provenance. Only a leakage-gate-passing version is eligible."""
 
     __tablename__ = "model_versions"
 
     model_version_id: Mapped[str] = mapped_column(String, primary_key=True)
     trained_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
     feature_set: Mapped[str | None] = mapped_column(String, nullable=True)
-    metrics: Mapped[dict[str, Any] | None] = mapped_column(JsonType, nullable=True)  # FR-22
-    calibration: Mapped[dict[str, Any] | None] = mapped_column(JsonType, nullable=True)  # FR-23
-    leakage_verdict: Mapped[str | None] = mapped_column(String, nullable=True)  # FR-26
-    df1_result: Mapped[dict[str, Any] | None] = mapped_column(JsonType, nullable=True)  # DF-1
+    metrics: Mapped[dict[str, Any] | None] = mapped_column(JsonType, nullable=True)
+    calibration: Mapped[dict[str, Any] | None] = mapped_column(JsonType, nullable=True)
+    leakage_verdict: Mapped[str | None] = mapped_column(String, nullable=True)
+    df1_result: Mapped[dict[str, Any] | None] = mapped_column(JsonType, nullable=True)
     artifact_path: Mapped[str | None] = mapped_column(String, nullable=True)
 
 
@@ -122,9 +122,9 @@ class Case(Base):
         ForeignKey("model_versions.model_version_id"), nullable=True
     )
 
-    # Nullable: the operational scorer is excluded under FR-4, so there is no
+    # Nullable: the operational scorer is excluded under, so there is no
     # model score. score is NULL and score_band is "none" — the persistence
-    # counterpart of the M4/M5 honest degradation (IMP-011, M7). No sentinel.
+    # counterpart of the honest degradation. No sentinel.
     score: Mapped[float | None] = mapped_column(Numeric, nullable=True)
     score_band: Mapped[str] = mapped_column(String, nullable=False)
     recommendation_action: Mapped[str] = mapped_column(String, nullable=False)
@@ -132,7 +132,7 @@ class Case(Base):
     recommendation_basis: Mapped[dict[str, Any]] = mapped_column(JsonType, nullable=False)
     uncertainty_flag: Mapped[bool] = mapped_column(Boolean, nullable=False)
 
-    # Assembled evidence snapshot = "evidence shown" for the audit trail (FR-2, FR-20).
+    # Assembled evidence snapshot = "evidence shown" for the audit trail.
     evidence: Mapped[dict[str, Any]] = mapped_column(JsonType, nullable=False)
 
     explanation_text: Mapped[str | None] = mapped_column(Text, nullable=True)
@@ -168,7 +168,7 @@ class RuleHit(Base):
 
 
 class Disposition(Base):
-    """The human decision record. The human is the sole decider (FR-16)."""
+    """The human decision record. The human is the sole decider."""
 
     __tablename__ = "dispositions"
 
@@ -177,13 +177,13 @@ class Disposition(Base):
     action: Mapped[str] = mapped_column(String, nullable=False)  # clear|hold|escalate
 
     # Engagement FLOOR (architectural): a disposition cannot exist without a
-    # reason code. Additionally enforced in the Disposition Service. [FR-17 elevated]
+    # reason code. Additionally enforced in the Disposition Service.
     reason_code: Mapped[str] = mapped_column(String, nullable=False)
     rationale: Mapped[str | None] = mapped_column(Text, nullable=True)
     deviated_from_recommendation: Mapped[bool] = mapped_column(Boolean, nullable=False)
     follow_up: Mapped[str | None] = mapped_column(Text, nullable=True)
 
-    analyst_id: Mapped[str] = mapped_column(String, nullable=False)  # FR-20
+    analyst_id: Mapped[str] = mapped_column(String, nullable=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
 
     case: Mapped[Case] = relationship(back_populates="dispositions")
@@ -193,7 +193,7 @@ class Disposition(Base):
 
 class AuditLog(Base):
     """Append-only audit record. A decision must be reconstructable from this
-    table alone (FR-20, NFR-3). Append-only is additionally enforced by the
+    table alone. Append-only is additionally enforced by the
     insert-only Audit Writer and a Postgres trigger (initial migration)."""
 
     __tablename__ = "audit_log"

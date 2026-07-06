@@ -1,4 +1,4 @@
-"""Templated explanation: deterministic, grounded by construction (FR-12).
+"""Templated explanation: deterministic, grounded by construction.
 
 Every sentence is generated from a named groundable ``EvidenceElement`` (or from the
 recommendation, which itself traces to elements). Numbers are rendered losslessly and
@@ -6,11 +6,9 @@ entities are copied verbatim from the elements, so every factual claim is
 reconstructable from the assembled evidence — the explanation is grounded by
 construction and provably passes the grounding gate (it therefore bypasses it).
 
-The explainer *consumes* evidence; it never sources it (Addendum §4). It explains the
+The explainer *consumes* evidence; it never sources it. It explains the
 assembled evidence and the recommendation — not model internals (the scorer is
-operationally excluded under FR-4).
-
-Spec references: FR-10, FR-12, FR-13; §11.2; Addendum §4.
+operationally excluded under).
 """
 
 from __future__ import annotations
@@ -80,7 +78,7 @@ class TemplatedExplainer:
                     ),
                 )
 
-        # 6. The score, or its honest FR-4 exclusion (requirement 6).
+        # 6. The score, or its honest exclusion (requirement 6).
         if "score_signal" in by_id:
             score = by_id["score_signal"]
             if str(score.raw.get("status")) == "excluded":

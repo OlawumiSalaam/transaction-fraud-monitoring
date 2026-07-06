@@ -1,1 +1,1 @@
-"""Streamlit analyst workspace (presentation layer). Implemented in M7."""
+"""Streamlit analyst workspace (presentation layer)."""

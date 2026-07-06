@@ -1,7 +1,4 @@
-"""Case routes: the assembled case view, evidence drill-down, and audit read (M7).
-
-Spec references: FR-2, FR-15, FR-20; Addendum §2.3.
-"""
+"""Case routes: the assembled case view, evidence drill-down, and audit read."""
 
 from __future__ import annotations
 

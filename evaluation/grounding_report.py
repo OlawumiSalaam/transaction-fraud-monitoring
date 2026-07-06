@@ -1,4 +1,4 @@
-"""Offline grounding-integrity report (FR-11, FR-24; §8.2).
+"""Offline grounding-integrity report.
 
 Grounding is one of the few things genuinely *measured* in V1: on synthetic cases
 the groundable evidence set is known, so we can run the deterministic grounding
@@ -7,7 +7,7 @@ to the evidence. On the templated floor the ungrounded rate is ≈ 0 by construc
 this report measures it rather than asserting it.
 
 Offline component only — it assembles synthetic cases and reads no operational
-store and writes nothing back to the online path (§5.1).
+store and writes nothing back to the online path.
 """
 
 from __future__ import annotations

@@ -1,7 +1,7 @@
-"""Scorer: calibrated probability plus contributing signals (FR-3).
+"""Scorer: calibrated probability plus contributing signals.
 
-Contract (Addendum §4 — Scorer):
-  In:  a ``FeatureVector`` (the shared substrate from M1).
+Contract (Scorer):
+  In: a ``FeatureVector`` (the shared substrate).
   Out: ``Score{probability, calibrated, contributing_signals}``.
 
 Architectural responsibility (Layer Separation): the scorer *predicts* — it
@@ -9,9 +9,9 @@ produces a calibrated probability and the signals behind it. It does not
 recommend, rule, explain, or decide. Those are separate layers.
 
 Invariants:
-  - Deterministic given inputs and a pinned model version (NFR-5).
-  - Only a leakage-gate-passing model version is loadable in the online path
-    (FR-4); this is enforced by the registry (``ml/registry.py``), not here.
+  - Deterministic given inputs and a pinned model version.
+  - Only a leakage-gate-passing model version is loadable in the online path;
+    this is enforced by the registry (``ml/registry.py``), not here.
   - ``sim_flagged`` is never an input; the ``FeatureVector`` does not carry it.
 
 The contributing signals are derived from the model's global permutation
@@ -19,10 +19,8 @@ importances and the training-set association direction of each feature (both
 computed once at training time and pinned into the artifact). They are a
 deterministic, interpretable "which known features stand out for this
 transaction" — not a per-instance attribution method. They are labelled as such
-so the evidence assembler (M4) and explanation layer (M6) reference only known,
+so the evidence assembler and explanation layer reference only known,
 human-readable values.
-
-Spec references: FR-3, FR-5, Addendum §4.
 """
 
 from __future__ import annotations
@@ -52,7 +50,7 @@ class ContributingSignal(BaseModel):
 
 
 class Score(BaseModel):
-    """The scorer's output (Addendum §4)."""
+    """The scorer's output."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -66,7 +64,7 @@ class Scorer(Protocol):
     """The online scoring interface consumed by the operational path.
 
     Implemented by ``FittedScorer``. The API layer injects a ``Scorer`` so the
-    model version is a pinned, swappable dependency (Implementation Plan §7).
+    model version is a pinned, swappable dependency.
     """
 
     model_version_id: str

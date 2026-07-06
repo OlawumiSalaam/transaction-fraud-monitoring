@@ -1,7 +1,7 @@
 """Database engine and session management.
 
 Infrastructure only. The relational models live in ``models.py`` and map to the
-Canonical Evidence Schema (Addendum §3). No query or business logic lives here.
+Canonical Evidence Schema. No query or business logic lives here.
 Postgres backs the running app; SQLite backs the unit-test suite via one common
 data-access layer.
 """

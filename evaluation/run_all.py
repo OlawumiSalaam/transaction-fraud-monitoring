@@ -1,21 +1,21 @@
-"""Reproducible offline evaluation report (M9; §7, §8).
+"""Reproducible offline evaluation report.
 
 One command consolidates the submission's evaluation evidence:
 
     python -m evaluation.run_all
 
-It **reads the committed M2 artifacts verbatim** — it does not retrain, recalibrate,
+It **reads the committed artifacts verbatim** — it does not retrain, recalibrate,
 or regenerate any model metric. Model metrics, eligibility, and the model version
 come from the committed scorer manifest (``models/scorer.joblib``); the full leakage
 verdict comes from ``evaluation/reports/leakage_verdict.json``. Only the grounding
 report (genuinely measurable on synthetic cases) is computed fresh. The leakage
 verdict is surfaced *alongside* the headline metrics so the FAIL and the scorer's
 ineligibility are impossible to miss. Every number is labelled measured or
-modelled estimate. Nothing here feeds back into the online path (§5.1).
+modelled estimate. Nothing here feeds back into the online path.
 
 Outputs under ``evaluation/reports/``: ``grounding_report.json``,
 ``evaluation_summary.json``, and ``evaluation_manifest.json`` (the single source of
-truth M10 uses to package the outputs without hardcoded filenames).
+truth uses to package the outputs without hardcoded filenames).
 """
 
 from __future__ import annotations
@@ -47,7 +47,7 @@ def _read_json(path: Path) -> dict[str, Any]:
 
 
 def build_summary(*, llm_enabled: bool = False) -> dict[str, Any]:
-    """Consolidate the committed M2 evidence + a fresh grounding report. No re-eval."""
+    """Consolidate the committed evidence + a fresh grounding report. No re-eval."""
     manifest = load_manifest(MODEL_PATH)  # committed model artifact, read verbatim
     metrics = manifest["metrics"]  # verbatim — not recomputed
     model_version_id = str(manifest["model_version_id"])
@@ -109,7 +109,7 @@ def build_summary(*, llm_enabled: bool = False) -> dict[str, Any]:
 
 
 def build_manifest(summary: dict[str, Any]) -> dict[str, Any]:
-    """The single source of truth for packaging (M10) — no hardcoded filenames."""
+    """The single source of truth for packaging — no hardcoded filenames."""
     model_version_id = summary["model_version_id"]
     return {
         "generated_at": summary["generated_at"],

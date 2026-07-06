@@ -1,4 +1,4 @@
-"""Streamlit analyst workspace (M7).
+"""Streamlit analyst workspace.
 
 Two screens over the FastAPI online path: the triage queue and the case view.
 Business logic stays behind the API; this module only renders and orchestrates

@@ -1,23 +1,21 @@
-"""Bounded candidate comparison on the out-of-time split (FR-3, FR-22, FR-23, FR-26, DF-1).
+"""Bounded candidate comparison on the out-of-time split.
 
-The training orchestration for M2. Given the M1 canonical feature dataset it:
+The training orchestration. Given the canonical feature dataset it:
 
 1. Splits out-of-time (train / val / test) via the configured boundaries.
 2. Fits each bounded candidate (primary HistGB, kitchen-sink LightGBM, logistic
-   floor), each with its own private preprocessing (IMP-006).
+   floor), each with its own private preprocessing.
 3. Calibrates each on the validation split and evaluates on the OOT test split.
-4. Runs the simulator-leakage gate for the two DF-1 candidates (interpretable
-   primary and kitchen-sink comparator) — the progression criterion (FR-4).
-5. Records the DF-1 interpretable-vs-kitchen-sink comparison with the full metric
+4. Runs the simulator-leakage gate for the two candidates (interpretable
+   primary and kitchen-sink comparator) — the progression criterion.
+5. Records the interpretable-vs-kitchen-sink comparison with the full metric
    set for both models (PR-AUC, precision, recall, Brier, leakage verdict).
 6. Selects the interpretable primary iff it passes the gate; a failing primary is
-   ineligible and is not silently replaced (M2 fixed decision).
+   ineligible and is not silently replaced (fixed decision).
 7. Builds the online ``FittedScorer`` and a JSON-serialisable ``TrainingReport``.
 
-Nothing here mutates the canonical dataset (IMP-006). The test split is touched
+Nothing here mutates the canonical dataset. The test split is touched
 only for final evaluation and the gate — never to tune a parameter or threshold.
-
-Spec references: FR-3, FR-4, FR-5, FR-22, FR-23, FR-26, DF-1, §8, §9.
 """
 
 from __future__ import annotations
@@ -49,7 +47,7 @@ _LABEL = "label"
 
 
 class CandidateReport(BaseModel):
-    """Per-candidate evaluation record (FR-22, FR-23, DF-1)."""
+    """Per-candidate evaluation record."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -58,11 +56,11 @@ class CandidateReport(BaseModel):
     feature_columns: tuple[str, ...]
     calibration_method: str
     metrics: EvalMetrics
-    leakage_verdict: LeakageVerdict | None  # run for the two DF-1 candidates
+    leakage_verdict: LeakageVerdict | None  # run for the two candidates
 
 
 class TrainingReport(BaseModel):
-    """The full M2 training/evaluation report (JSON-serialisable)."""
+    """The full training/evaluation report (JSON-serialisable)."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -130,7 +128,7 @@ def run_training(
         cal_test = calibrator.predict(raw_test)
         metrics = compute_metrics(y_test, cal_test, config.eval_threshold)
 
-        # Leakage gate for the two DF-1 candidates (interpretable + kitchen-sink).
+        # Leakage gate for the two candidates (interpretable + kitchen-sink).
         verdict: LeakageVerdict | None = None
         if spec.kind in ("histgb", "lightgbm"):
             verdict = run_leakage_gate(
@@ -198,7 +196,7 @@ def run_training(
 
 
 def _build_df1(reports: list[CandidateReport]) -> dict[str, object]:
-    """Assemble the DF-1 interpretable-vs-kitchen-sink comparison (§11.1, FR-5).
+    """Assemble the interpretable-vs-kitchen-sink comparison.
 
     Both models report PR-AUC, precision, recall, Brier, and the leakage verdict.
     """

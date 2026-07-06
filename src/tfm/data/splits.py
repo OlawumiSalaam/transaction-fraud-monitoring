@@ -1,8 +1,8 @@
-"""Out-of-time split policy (§8.3).
+"""Out-of-time split policy.
 
 Random train/test splits are prohibited: a random split can leak future
-information into the training set through features that aggregate over time
-(§6.5, §8.3, R2 in Addendum §5).  The only permitted split is temporal: train
+information into the training set through features that aggregate over time.
+The only permitted split is temporal: train
 on earlier data, evaluate on later data that the model never saw during training.
 
 PaySim has 744 steps (~31 days of hourly simulation).  The reference split:
@@ -11,12 +11,10 @@ PaySim has 744 steps (~31 days of hourly simulation).  The reference split:
   test:   steps in (VAL_END, 744]            — out-of-time evaluation
 
 Both boundaries are fixed constants, not random seeds, so the split is
-reproducible from the data file alone (NFR-5).
+reproducible from the data file alone.
 
 The split is determined by step (PaySim's original time index), not event_ts,
 to avoid any dependence on the base-epoch implementation choice in ingest.py.
-
-Spec references: §6.5, §8.3, FR-22, R2 (temporal leakage guard, Addendum §5).
 Architectural responsibility: owns the train/val/test temporal boundaries.
 """
 
@@ -42,7 +40,6 @@ class DataSplit:
     have step > val_end_step.  The three sets are disjoint and their union
     equals the input DataFrame.
 
-    Spec: §8.3, FR-22.
     """
 
     train: pd.DataFrame
@@ -60,7 +57,7 @@ def make_out_of_time_split(
     """Partition transactions into train / val / test by step value.
 
     The split is purely temporal — no random sampling.  The same input
-    DataFrame and boundary parameters always produce the same split (NFR-5).
+    DataFrame and boundary parameters always produce the same split.
 
     INVARIANT: max(train.step) <= train_end_step < min(val.step) <=
     val_end_step < min(test.step).
@@ -68,8 +65,8 @@ def make_out_of_time_split(
     Raises ValueError if the 'step' column is absent or boundaries are
     invalid (train_end_step must be strictly less than val_end_step).
 
-    Spec: §8.3, FR-22. R2 mitigation: temporal split prevents test-set
-    information from leaking into training features.
+    The temporal split prevents test-set information from leaking into
+    training features.
     """
     if "step" not in df.columns:
         raise ValueError("DataFrame must contain a 'step' column for the OOT split")

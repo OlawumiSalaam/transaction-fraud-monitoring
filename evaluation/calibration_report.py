@@ -1,12 +1,10 @@
-"""Calibration reporting: reliability diagram data and Brier score (FR-23).
+"""Calibration reporting: reliability diagram data and Brier score.
 
 Probability calibration in the reliability sense: does a predicted probability of
 0.7 correspond to ~70% observed fraud? This module computes the reliability-bin
 summary and Brier scores that quantify it. The *choice and fitting* of the
 calibrator (isotonic vs Platt, with the small-fold guard) lives in
 ``ml/calibration.py``; this module only measures.
-
-Spec references: FR-23, §8.
 """
 
 from __future__ import annotations

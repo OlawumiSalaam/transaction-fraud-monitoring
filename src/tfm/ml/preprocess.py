@@ -1,16 +1,14 @@
-"""Candidate-private preprocessing (IMP-006).
+"""Candidate-private preprocessing.
 
-The canonical feature dataset produced by M1 (``data/features.py``) is the single
-shared substrate for the scorer, the rule engine, and the evidence assembler
-(§6.5, FR-5). It is **never mutated** by the modelling layer. Every function here
+The canonical feature dataset produced (``data/features.py``) is the single
+shared substrate for the scorer, the rule engine, and the evidence assembler.
+It is **never mutated** by the modelling layer. Every function here
 reads a defensive projection of the columns it needs and returns a fresh numeric
 matrix; the input DataFrame is left unchanged.
 
 Imputation and scaling are private to a single candidate's pipeline and are fitted
 on the training split only, then applied to validation and test (no cross-split
 fitting — a temporal-leakage guard, R2).
-
-Spec references: §6.5, FR-5, R2 (Addendum §5); IMP-006.
 """
 
 from __future__ import annotations

@@ -1,19 +1,17 @@
-"""Probability calibration: isotonic / Platt with a small-fold guard (FR-23).
+"""Probability calibration: isotonic / Platt with a small-fold guard.
 
 The scorer must expose a *calibrated* probability so a reported 0.7 means roughly
-70% observed fraud (§8). The calibrator is fitted on the validation split only
+70% observed fraud. The calibrator is fitted on the validation split only
 (never the test split — an out-of-time guard) and applied on top of the base
 estimator's raw probability.
 
-Isotonic regression can overfit on small folds (R14, Addendum §5); the ``auto``
+Isotonic regression can overfit on small folds; the ``auto``
 policy falls back to Platt (sigmoid) scaling when the validation split holds fewer
 than a configured number of fraud examples, and otherwise picks whichever of the
 two yields the lower validation Brier score.
 
 The reliability/Brier *measurement* lives in ``evaluation/calibration_report.py``;
 this module chooses, fits, and applies the calibrator.
-
-Spec references: FR-23, §8; R14 (Addendum §5).
 """
 
 from __future__ import annotations
@@ -80,7 +78,7 @@ def choose_and_fit_calibrator(
     if config.method == "sigmoid":
         return _SigmoidCalibrator().fit(raw_val, y_val), "sigmoid"
 
-    # auto: guard isotonic against small fraud folds (R14); otherwise pick by Brier.
+    # auto: guard isotonic against small fraud folds; otherwise pick by Brier.
     if n_fraud < config.min_fraud_for_isotonic:
         return _SigmoidCalibrator().fit(raw_val, y_val), "sigmoid"
 

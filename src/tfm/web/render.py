@@ -1,11 +1,9 @@
-"""Presentation helpers for the analyst workspace (M7).
+"""Presentation helpers for the analyst workspace.
 
 Pure functions — no Streamlit imports — so the analyst-facing mapping (product
 language) and the no-default disposition control are unit-testable. These map the
 API's composed objects into analyst language; they contain no fraud, model, or
 explanation logic.
-
-Spec references: FR-13, FR-15, FR-16; §11.2.
 """
 
 from __future__ import annotations
@@ -56,7 +54,7 @@ def action_badge(action: str) -> str:
 
 
 def disposition_control(options: list[str] | tuple[str, ...]) -> dict[str, Any]:
-    """The disposition control spec: options with NO default selection (FR-15).
+    """The disposition control spec: options with NO default selection.
 
     ``index=None`` renders unselected on Streamlit 1.58; the sentinel + a disabled
     submit-until-chosen enforce the boundary even on an older build.

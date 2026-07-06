@@ -1,13 +1,13 @@
-"""Recommendation Policy: (score band, rule hits) -> clear/hold/escalate (FR-8, FR-9).
+"""Recommendation Policy: (score band, rule hits) -> clear/hold/escalate.
 
 A pure, deterministic, **advisory** mapping from the score band plus the fired rule
 hits to a suggested action. It never decides — the analyst is the sole decider
-(§11.2, Decision A/C) — and it does not score, explain, rank, or route.
+(Decision A/C) — and it does not score, explain, rank, or route.
 
 Two paths, one architecture:
 
-- **Absent-score path (operational; ships while the scorer is gate-ineligible under
-  FR-4):** recommends solely from rule evidence and **never returns ``clear``** — a
+- **Absent-score path (operational; ships while the scorer is gate-ineligible):**
+  recommends solely from rule evidence and **never returns ``clear``** — a
   clear asserts trustworthy low-risk assurance the excluded scorer cannot provide.
   An escalating rule -> escalate; any other fired rule -> hold; no rule hits -> hold
   with the uncertainty flag set. ``score_band`` is ``"none"``.
@@ -19,9 +19,6 @@ Two paths, one architecture:
 Thresholds and the escalating-rule set come from ``config/thresholds.yaml`` (no
 literals in logic). The recommendation carries its basis (score band + rule ids)
 and an uncertainty flag.
-
-Spec references: FR-8, FR-9, §11.2; Addendum §4 (Recommendation shape); Release
-Plan M5; Implementation Plan M5; Principle: Human in the Loop, Governance.
 """
 
 from __future__ import annotations
@@ -47,7 +44,7 @@ _BAND_ACTION: dict[ScoreBand, Action] = {
 
 
 class RecommendationBasis(BaseModel):
-    """What the recommendation was derived from — auditable (FR-20)."""
+    """What the recommendation was derived from — auditable."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -56,7 +53,7 @@ class RecommendationBasis(BaseModel):
 
 
 class Recommendation(BaseModel):
-    """The advisory recommendation (Addendum §4). Never a decision."""
+    """The advisory recommendation. Never a decision."""
 
     model_config = ConfigDict(frozen=True)
 
@@ -113,7 +110,7 @@ def recommend(
         uncertainty_flag = band == "borderline" or conflict
         confidence = "high" if (band in ("low", "high") and not conflict) else "medium"
     else:
-        # Absent-score path: never clear (FR-4 — no trustworthy assurance of safety).
+        # Absent-score path: never clear( — no trustworthy assurance of safety).
         band = "none"
         action = rule_action if rule_action is not None else "hold"
         uncertainty_flag = True  # no operational score to corroborate

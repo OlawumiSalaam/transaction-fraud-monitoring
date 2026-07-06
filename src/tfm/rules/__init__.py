@@ -1,4 +1,4 @@
-"""Deterministic logic: rule engine (FR-6). Implemented in M3."""
+"""Deterministic logic: rule engine."""
 
 from tfm.rules.definitions import REGISTRY, RuleDefinition
 from tfm.rules.engine import RuleEngine

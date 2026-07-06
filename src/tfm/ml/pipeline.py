@@ -5,9 +5,7 @@ These low-level helpers are used by both the training orchestration
 live in a dependency-free module to avoid an import cycle between the two.
 
 Every function reads a defensive projection of the canonical dataset and never
-mutates it (IMP-006). Preprocessing is fitted on the training matrix only.
-
-Spec references: FR-3, §6.5, R2; IMP-006.
+mutates it. Preprocessing is fitted on the training matrix only.
 """
 
 from __future__ import annotations
