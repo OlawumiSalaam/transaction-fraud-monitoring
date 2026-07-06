@@ -1,25 +1,15 @@
-# Documentation Index
+# Documentation
 
-This repository is governed by the following documents.
+- **[PROJECT_DOCUMENTATION.md](PROJECT_DOCUMENTATION.md)** — the definitive engineering
+  reference for the platform: problem context, architecture, dataset, machine learning
+  and the simulator-leakage investigation, the rule engine, evidence assembly,
+  explainability and grounding, the analyst workspace, audit and governance,
+  evaluation, responsible-AI guarantees, deployment, and the engineering approach.
+- **[../README.md](../README.md)** — project overview and quick start.
+- **`images/`** — architecture diagram and workspace screenshots used throughout the
+  documentation.
 
-## Order of Authority
-
-1. Product Specification
-2. Engineering Addendum
-3. Hackathon Release Plan
-4. Implementation Plan
-
-## Documents
-
-- 01_Product_Specification.md
-- 02_Engineering_Addendum.md
-- 03_Hackathon_Release_Plan.md
-- 04_Implementation_Plan.md
-
-The Product Specification is the primary source of truth.
-
-The Engineering Addendum records engineering decisions that refine implementation without changing the product architecture.
-
-The Hackathon Release Plan defines the reduced implementation scope required for the hackathon submission.
-
-The Implementation Plan defines the long-term engineering roadmap.
+The `internal/` directory retains the original design records produced while the
+system was being built — the product specification, engineering addendum, delivery
+plans, and the implementation decision and progress logs. They are kept for provenance
+and are not required to understand or run the system.
